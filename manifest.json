@@ -1,0 +1,18 @@
+{
+  "name": "W&C 家庭記帳本",
+  "short_name": "家庭記帳",
+  "description": "Willie & Christine 專屬雲端家庭記帳與資產管理系統 (Percento Style + Google Sheet Sync)",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
