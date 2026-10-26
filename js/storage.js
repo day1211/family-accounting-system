@@ -3,15 +3,15 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=7';
+} from './defaultData.js?v=8';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v7',
-  CATEGORIES: 'wc_fas_categories_v7',
-  MEMBERS: 'wc_fas_members_v7',
-  TEMPLATES: 'wc_fas_templates_v7',
-  SETTINGS: 'wc_fas_settings_v7',
-  DELETED_IDS: 'wc_fas_deleted_ids_v7'
+  TRANSACTIONS: 'wc_fas_transactions_v8',
+  CATEGORIES: 'wc_fas_categories_v8',
+  MEMBERS: 'wc_fas_members_v8',
+  TEMPLATES: 'wc_fas_templates_v8',
+  SETTINGS: 'wc_fas_settings_v8',
+  DELETED_IDS: 'wc_fas_deleted_ids_v8'
 };
 
 // 編碼儲存之雲端同步端點（解鎖後自動掛載，支援 iOS 主畫面獨立沙盒自動配對）
@@ -33,8 +33,8 @@ const isLocalDev =
     window.location.hostname.startsWith('192.168.'));
 
 const DEFAULT_SETTINGS = {
-  gasUrl: isLocalDev ? getDefaultGasUrl() : '',
-  passcode: isLocalDev ? 'WC-Family-2026' : '',
+  gasUrl: getDefaultGasUrl(),
+  passcode: 'WC-Family-2026',
   defaultMember: 'Willie',
   monthlyBudget: 80000,
   faceIdEnabled: false,

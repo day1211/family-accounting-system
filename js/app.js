@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=7';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=7';
-import { Storage } from './storage.js?v=7';
-import { Auth } from './auth.js?v=7';
-import { Api } from './api.js?v=7';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=8';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=8';
+import { Storage } from './storage.js?v=8';
+import { Auth } from './auth.js?v=8';
+import { Api } from './api.js?v=8';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -240,6 +240,11 @@ function renderHeaderAndSyncBadge() {
     dot.className = 'h-1.5 w-1.5 rounded-full bg-indigo-600';
     text.textContent = '雲端自動同步';
     if (heroSyncTime) heroSyncTime.textContent = '已與 Google Sheet 即時同步';
+  } else if (State.syncStatus === 'error') {
+    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200';
+    dot.className = 'h-1.5 w-1.5 rounded-full bg-rose-500';
+    text.textContent = '點擊重試同步';
+    if (heroSyncTime) heroSyncTime.textContent = State.lastSyncError || '同步未完成，請點擊重試';
   } else if (State.syncStatus === 'pending_auth') {
     badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700';
     dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-500';
@@ -1098,16 +1103,16 @@ async function performAutoSync(silent = true) {
   try {
     await Api.syncWithCloud();
     State.syncStatus = 'synced';
+    State.lastSyncError = null;
     renderAll();
     if (!silent) {
       showToast('已與 Google Sheet 完成自動同步');
     }
   } catch (err) {
-    State.syncStatus = 'pending_auth';
+    State.syncStatus = 'error';
+    State.lastSyncError = err.message;
     renderHeaderAndSyncBadge();
-    if (!silent) {
-      showToast(`${err.message}`);
-    }
+    showToast(`雲端同步失敗: ${err.message}`, 5000);
   }
 }
 
@@ -1573,14 +1578,6 @@ function downloadFile(filename, content, mimeType) {
 }
 
 async function bootstrap() {
-  if ('serviceWorker' in navigator) {
-    try {
-      await navigator.serviceWorker.register('./sw.js?v=7');
-    } catch {
-      // ignore SW error
-    }
-  }
-
   bindEvents();
   await checkUrlMigrationOnBoot();
   await initFaceIdGuard();

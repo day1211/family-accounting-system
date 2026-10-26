@@ -1,11 +1,12 @@
-import { Storage } from './storage.js?v=7';
+import { Storage } from './storage.js?v=8';
 
 let isSyncingNow = false;
 
 export const Api = {
   isConfigured() {
     const settings = Storage.getSettings();
-    return Boolean(settings.gasUrl && settings.gasUrl.startsWith('https://script.google.com/'));
+    const url = settings.gasUrl || Storage.getDefaultGasUrl();
+    return Boolean(url && url.startsWith('https://script.google.com/'));
   },
 
   async callGas(action, payload = {}) {
@@ -40,7 +41,8 @@ export const Api = {
     try {
       result = JSON.parse(text);
     } catch {
-      throw new Error('Google Sheet 尚未完成初次權限核准，請先在試算表上方選單點擊一次「初始化」');
+      const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
+      throw new Error(`雲端回應格式異常 (${preview || '空內容'})`);
     }
 
     if (!result.ok) {
