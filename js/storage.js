@@ -3,18 +3,25 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=5';
+} from './defaultData.js?v=6';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v5',
-  CATEGORIES: 'wc_fas_categories_v5',
-  MEMBERS: 'wc_fas_members_v5',
-  TEMPLATES: 'wc_fas_templates_v5',
-  SETTINGS: 'wc_fas_settings_v5',
-  DELETED_IDS: 'wc_fas_deleted_ids_v5'
+  TRANSACTIONS: 'wc_fas_transactions_v6',
+  CATEGORIES: 'wc_fas_categories_v6',
+  MEMBERS: 'wc_fas_members_v6',
+  TEMPLATES: 'wc_fas_templates_v6',
+  SETTINGS: 'wc_fas_settings_v6',
+  DELETED_IDS: 'wc_fas_deleted_ids_v6'
 };
 
-// 資安設計：公開程式碼絕不暴露私密金鑰；僅在本機開發環境 (localhost) 提供預設開發連線輔助
+// 資安防護：以 PBKDF2 (100,000 次迭代) + AES-256-GCM 加密儲存之雲端同步端點密文
+// 公開程式碼完全不包含明文 GAS 網址或通行碼，必須輸入正確的「家庭通行碼」才能解密連線！
+const ENCRYPTED_GAS_VAULT = {
+  salt: 'wc-family-ledger-salt-2026',
+  iv: '0DfqlGnWvs/SLtx7',
+  ct: 'ZoZr4QYkc6OcBAi8E3vp1vuiaKEOb/kVR7U3O3gtdeby93av7/SrC1FUNUPHiiwnhJyPsPGfdsCvRxpp42CGH/Z3j8shUEiv2s9hcjWQk/xZurgymqjRDLpW0APD/mFMON+j+x8dvwYTYqVJuE/ey9P/VAbKkD7vZmuOdwR+32Zmig=='
+};
+
 const isLocalDev =
   typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' ||
@@ -32,7 +39,7 @@ const DEFAULT_SETTINGS = {
   faceIdCredentialId: '',
   lockPin: '',
   lastSyncAt: null,
-  isDemoData: true
+  isDemoData: isLocalDev
 };
 
 function safeParse(raw, fallback) {
@@ -44,12 +51,26 @@ function safeParse(raw, fallback) {
   }
 }
 
+function base64ToUint8Array(b64) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) {
+    arr[i] = bin.charCodeAt(i);
+  }
+  return arr;
+}
+
 export const Storage = {
   getSettings() {
-    // 遷移舊版設定（若使用者已在 v4 儲存過連線設定則自動保留）
-    const savedV5 = safeParse(localStorage.getItem(STORAGE_KEYS.SETTINGS), null);
-    if (savedV5) {
-      return { ...DEFAULT_SETTINGS, ...savedV5 };
+    const savedV6 = safeParse(localStorage.getItem(STORAGE_KEYS.SETTINGS), null);
+    if (savedV6) {
+      return { ...DEFAULT_SETTINGS, ...savedV6 };
+    }
+    const savedV5 = safeParse(localStorage.getItem('wc_fas_settings_v5'), null);
+    if (savedV5 && savedV5.gasUrl) {
+      const merged = { ...DEFAULT_SETTINGS, ...savedV5 };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+      return merged;
     }
     const savedV4 = safeParse(localStorage.getItem('wc_fas_settings_v4'), null);
     if (savedV4 && savedV4.gasUrl) {
@@ -64,6 +85,69 @@ export const Storage = {
     const next = { ...this.getSettings(), ...partial };
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(next));
     return next;
+  },
+
+  /**
+   * 使用使用者輸入的家庭通行碼，透過 Web Crypto AES-256-GCM 解密雲端 GAS URL
+   * 若通行碼錯誤，AES-GCM 驗證標籤會直接拋出例外，確保未授權者無法取得網址或進入系統
+   */
+  async unlockVaultWithPasscode(inputPasscode) {
+    const clean = (inputPasscode || '').trim();
+    if (!clean) return false;
+
+    const currentSettings = this.getSettings();
+    if (
+      (currentSettings.lockPin && clean === currentSettings.lockPin) ||
+      (currentSettings.passcode && clean === currentSettings.passcode && currentSettings.gasUrl)
+    ) {
+      return true;
+    }
+
+    try {
+      const enc = new TextEncoder();
+      const salt = enc.encode(ENCRYPTED_GAS_VAULT.salt);
+      const iv = base64ToUint8Array(ENCRYPTED_GAS_VAULT.iv);
+      const ciphertext = base64ToUint8Array(ENCRYPTED_GAS_VAULT.ct);
+
+      const keyMaterial = await window.crypto.subtle.importKey(
+        'raw',
+        enc.encode(clean),
+        'PBKDF2',
+        false,
+        ['deriveKey']
+      );
+
+      const key = await window.crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+
+      const decryptedBuf = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        ciphertext
+      );
+
+      const decryptedUrl = new TextDecoder().decode(decryptedBuf);
+      if (decryptedUrl && decryptedUrl.startsWith('https://script.google.com/')) {
+        this.saveSettings({
+          gasUrl: decryptedUrl,
+          passcode: clean
+        });
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
   },
 
   getMembers() {
@@ -115,12 +199,18 @@ export const Storage = {
 
   getTransactions() {
     const saved = safeParse(localStorage.getItem(STORAGE_KEYS.TRANSACTIONS), null);
-    if (!saved || !Array.isArray(saved)) {
-      const sample = generateSampleTransactions();
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(sample));
-      return sample;
+    if (saved && Array.isArray(saved)) {
+      return saved;
     }
-    return saved;
+    const savedV5 = safeParse(localStorage.getItem('wc_fas_transactions_v5'), null);
+    if (savedV5 && Array.isArray(savedV5)) {
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(savedV5));
+      return savedV5;
+    }
+    // 正式環境不產生假資料，等待通過驗證後直接從 Google Sheet 載入真實帳目
+    const initial = isLocalDev ? generateSampleTransactions() : [];
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(initial));
+    return initial;
   },
 
   saveTransactions(transactions) {
@@ -149,7 +239,7 @@ export const Storage = {
   generateMigrationCode(targetMember = '') {
     const settings = this.getSettings();
     const payload = {
-      v: 5,
+      v: 6,
       u: settings.gasUrl || '',
       p: settings.passcode || '',
       m: targetMember || settings.defaultMember || 'Willie',
@@ -211,7 +301,7 @@ export const Storage = {
 
   exportFullBackupJson() {
     const data = {
-      version: 5,
+      version: 6,
       exportedAt: new Date().toISOString(),
       settings: this.getSettings(),
       members: this.getMembers(),

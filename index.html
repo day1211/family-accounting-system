@@ -20,7 +20,7 @@
   <script>
     (async function () {
       try {
-        if (localStorage.getItem('wc_sw_version') !== 'v5') {
+        if (localStorage.getItem('wc_sw_version') !== 'v6') {
           if ('serviceWorker' in navigator) {
             const regs = await navigator.serviceWorker.getRegistrations();
             for (const r of regs) await r.unregister();
@@ -29,7 +29,7 @@
             const keys = await caches.keys();
             for (const k of keys) await caches.delete(k);
           }
-          localStorage.setItem('wc_sw_version', 'v5');
+          localStorage.setItem('wc_sw_version', 'v6');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,15 +39,15 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=5" />
+  <link rel="stylesheet" href="./css/styles.css?v=6" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
   <!-- =====================================================================
-       Face ID / 通行碼 鎖定畫面 (單色極簡風格)
+       Face ID / 通行碼 強制門禁鎖定畫面 (未驗證前預設顯示，阻擋未授權/無痕存取)
        ===================================================================== -->
-  <div id="lock-screen" class="fixed inset-0 z-50 hidden flex-col items-center justify-between bg-slate-950 px-6 py-14 text-white">
-    <div class="mt-6 text-center">
+  <div id="lock-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-between bg-slate-950 px-6 pt-safe-lock text-white">
+    <div class="mt-2 text-center">
       <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 border border-white/15">
         <svg class="w-7 h-7 text-indigo-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -64,32 +64,32 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M7 3H5a2 2 0 00-2 2v2m14-4h2a2 2 0 012 2v2M7 21H5a2 2 0 01-2-2v-2m14 4h2a2 2 0 002-2v-2M9 9h.01M15 9h.01M12 9v3m-2.5 3.5a3.5 3.5 0 005 0" />
         </svg>
       </button>
-      <p class="mt-5 text-sm font-semibold text-slate-200">點擊使用 Face ID 解鎖</p>
-      <p id="lock-error-msg" class="mt-2 text-xs text-slate-400 min-h-[1.25rem] text-center"></p>
+      <p id="lock-faceid-hint" class="mt-5 text-sm font-semibold text-slate-200">點擊使用 Face ID 解鎖</p>
+      <p id="lock-error-msg" class="mt-2 text-xs text-amber-300/90 min-h-[1.25rem] text-center px-2"></p>
 
       <div class="mt-6 w-full border-t border-slate-800/80 pt-5">
-        <label class="block text-xs text-slate-400 mb-2 text-center">或輸入家庭通行碼解鎖</label>
+        <label class="block text-xs text-slate-400 mb-2 text-center">首次連線 / 無痕模式請輸入家庭通行碼解鎖</label>
         <div class="flex gap-2">
           <input id="input-unlock-passcode" type="password" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" />
-          <button id="btn-unlock-passcode" type="button" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 transition">
-            解鎖
+          <button id="btn-unlock-passcode" type="button" class="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs font-extrabold text-white transition">
+            驗證解鎖
           </button>
         </div>
       </div>
     </div>
 
     <div class="text-[11px] text-slate-500 text-center">
-      受 WebAuthn Face ID 與家庭私密金鑰保護
+      受 WebAuthn Face ID 與 AES-256-GCM 家庭金鑰加密保護
     </div>
   </div>
 
   <!-- =====================================================================
-       主應用程式容器 (Percento 手機版居中版面)
+       主應用程式容器 (通過身分驗證後才顯示)
        ===================================================================== -->
-  <div class="mx-auto max-w-md min-h-screen flex flex-col pb-safe-nav">
+  <div id="app-main-container" class="mx-auto max-w-md min-h-screen hidden flex-col pb-safe-nav">
 
-    <!-- 頂部導覽與月份切換列 -->
-    <header class="sticky top-0 z-30 bg-[#F4F5F8]/90 backdrop-blur-md px-4 pt-3 pb-2.5 border-b border-slate-200/70">
+    <!-- 頂部導覽與月份切換列 (支援 iPhone 動態島 Safe Area) -->
+    <header class="sticky top-0 z-30 bg-[#F4F5F8]/95 backdrop-blur-md px-4 pt-safe-header pb-2.5 border-b border-slate-200/70">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-950 text-white shadow-sm">
@@ -124,7 +124,7 @@
     </header>
 
     <!-- 頂部通知橫幅 -->
-    <div id="toast-banner" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] rounded-2xl bg-slate-900/95 text-white px-4 py-3 text-xs font-medium shadow-xl border border-slate-800 flex items-center justify-between gap-2">
+    <div id="toast-banner" class="fixed top-safe-toast left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] rounded-2xl bg-slate-900/95 text-white px-4 py-3 text-xs font-medium shadow-xl border border-slate-800 flex items-center justify-between gap-2">
       <span id="toast-banner-text">操作成功</span>
       <button id="btn-close-toast" class="text-slate-400 hover:text-white text-xs">✕</button>
     </div>
@@ -754,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=5"></script>
+  <script type="module" src="./js/app.js?v=6"></script>
 </body>
 </html>

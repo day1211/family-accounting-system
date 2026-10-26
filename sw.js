@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wc-family-accounting-v5';
+const CACHE_NAME = 'wc-family-accounting-v6';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=5';
+import { Storage } from './storage.js?v=6';
 
 let isSyncingNow = false;
 

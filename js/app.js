@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=5';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=5';
-import { Storage } from './storage.js?v=5';
-import { Auth } from './auth.js?v=5';
-import { Api } from './api.js?v=5';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=6';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=6';
+import { Storage } from './storage.js?v=6';
+import { Auth } from './auth.js?v=6';
+import { Api } from './api.js?v=6';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -62,6 +62,7 @@ async function checkUrlMigrationOnBoot() {
 
   try {
     Storage.applyMigrationCode(setupCode);
+    Auth.markSessionUnlocked();
     const cleanUrl = window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
     showToast('已成功匯入家庭帳本連線設定，正在自動同步雲端...', 4000);
@@ -70,37 +71,79 @@ async function checkUrlMigrationOnBoot() {
   }
 }
 
-async function initFaceIdGuard() {
+function showUnlockedAppUI() {
   const lockScreen = document.getElementById('lock-screen');
-  if (!lockScreen) return;
-  if (Auth.isSessionUnlocked()) {
+  const mainContainer = document.getElementById('app-main-container');
+  if (lockScreen) {
     lockScreen.classList.add('hidden');
     lockScreen.classList.remove('flex');
+  }
+  if (mainContainer) {
+    mainContainer.classList.remove('hidden');
+    mainContainer.classList.add('flex');
+  }
+  renderAll();
+  performAutoSync(false);
+}
+
+function showLockedScreenUI() {
+  const lockScreen = document.getElementById('lock-screen');
+  const mainContainer = document.getElementById('app-main-container');
+  if (mainContainer) {
+    mainContainer.classList.add('hidden');
+    mainContainer.classList.remove('flex');
+  }
+  if (lockScreen) {
+    lockScreen.classList.remove('hidden');
+    lockScreen.classList.add('flex');
+  }
+}
+
+async function initFaceIdGuard() {
+  if (Auth.isSessionUnlocked()) {
+    showUnlockedAppUI();
     return;
   }
 
-  lockScreen.classList.remove('hidden');
-  lockScreen.classList.add('flex');
+  showLockedScreenUI();
 
-  setTimeout(() => {
-    handleFaceIdUnlock();
-  }, 250);
+  const settings = Storage.getSettings();
+  const hintEl = document.getElementById('lock-faceid-hint');
+  const errEl = document.getElementById('lock-error-msg');
+
+  if (!settings.gasUrl || !settings.passcode) {
+    if (hintEl) hintEl.textContent = '請先輸入下方「家庭通行碼」驗證身分';
+    if (errEl) errEl.textContent = '首次於此瀏覽器或無痕模式開啟，需先驗證家庭通行碼';
+    return;
+  }
+
+  if (settings.faceIdEnabled) {
+    if (hintEl) hintEl.textContent = '點擊使用 Face ID 解鎖';
+    setTimeout(() => {
+      handleFaceIdUnlock();
+    }, 250);
+  } else {
+    if (hintEl) hintEl.textContent = '點擊上方圖示一鍵啟用 Face ID 解鎖';
+  }
 }
 
 async function handleFaceIdUnlock() {
   const errEl = document.getElementById('lock-error-msg');
-  if (errEl) errEl.textContent = '正在喚起 Face ID 驗證...';
+  if (errEl) errEl.textContent = '正在喚起 Face ID 生物辨識驗證...';
   try {
     const ok = await Auth.verifyFaceId();
     if (ok) {
       if (errEl) errEl.textContent = '';
-      document.getElementById('lock-screen').classList.add('hidden');
-      document.getElementById('lock-screen').classList.remove('flex');
-      showToast('Face ID 解鎖成功');
+      showUnlockedAppUI();
+      showToast('Face ID 驗證解鎖成功');
     }
-  } catch {
+  } catch (err) {
     if (errEl) {
-      errEl.textContent = 'Face ID 未完成驗證，可再次點擊圖示或使用下方家庭通行碼解鎖';
+      if (err && err.message === 'UNPAIRED_DEVICE') {
+        errEl.textContent = '此瀏覽器尚未配對或處於無痕模式，請先輸入下方「家庭通行碼」解鎖';
+      } else {
+        errEl.textContent = 'Face ID 未完成驗證，請再次點擊圖示或輸入下方家庭通行碼解鎖';
+      }
     }
   }
 }
@@ -1053,7 +1096,7 @@ function closeTransactionModal() {
 }
 
 async function performAutoSync(silent = true) {
-  if (!Api.isConfigured()) return;
+  if (!Auth.isSessionUnlocked() || !Api.isConfigured()) return;
 
   State.syncStatus = 'syncing';
   renderHeaderAndSyncBadge();
@@ -1135,15 +1178,31 @@ function bindEvents() {
     handleFaceIdUnlock();
   });
 
-  document.getElementById('btn-unlock-passcode').addEventListener('click', () => {
-    const val = document.getElementById('input-unlock-passcode').value;
-    if (Auth.verifyFallbackPasscode(val)) {
-      document.getElementById('lock-screen').classList.add('hidden');
-      document.getElementById('lock-screen').classList.remove('flex');
-      document.getElementById('input-unlock-passcode').value = '';
-      showToast('通行碼驗證成功');
+  const handlePasscodeSubmit = async () => {
+    const inputEl = document.getElementById('input-unlock-passcode');
+    const errEl = document.getElementById('lock-error-msg');
+    const val = inputEl.value;
+    if (!val || !val.trim()) {
+      errEl.textContent = '請輸入家庭通行碼';
+      return;
+    }
+    errEl.textContent = '正在驗證金鑰並解密雲端連線...';
+    const ok = await Auth.verifyFallbackPasscode(val);
+    if (ok) {
+      inputEl.value = '';
+      errEl.textContent = '';
+      showUnlockedAppUI();
+      showToast('家庭通行碼驗證成功，已自動連線雲端');
     } else {
-      document.getElementById('lock-error-msg').textContent = '家庭通行碼不正確，請重新輸入';
+      errEl.textContent = '家庭通行碼不正確，無法解鎖帳本';
+    }
+  };
+
+  document.getElementById('btn-unlock-passcode').addEventListener('click', handlePasscodeSubmit);
+  document.getElementById('input-unlock-passcode').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handlePasscodeSubmit();
     }
   });
 
@@ -1373,15 +1432,8 @@ function bindEvents() {
   });
 
   document.getElementById('btn-test-lock').addEventListener('click', () => {
-    const settings = Storage.getSettings();
-    if (!settings.faceIdEnabled && !settings.passcode) {
-      showToast('請先綁定 Face ID 或設定家庭通行碼後再測試鎖定');
-      return;
-    }
     Auth.lockSession();
-    const lockScreen = document.getElementById('lock-screen');
-    lockScreen.classList.remove('hidden');
-    lockScreen.classList.add('flex');
+    initFaceIdGuard();
   });
 
   document.getElementById('btn-disable-faceid').addEventListener('click', () => {
@@ -1525,7 +1577,7 @@ function downloadFile(filename, content, mimeType) {
 async function bootstrap() {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./sw.js?v=5');
+      await navigator.serviceWorker.register('./sw.js?v=6');
     } catch {
       // ignore SW error
     }
@@ -1533,7 +1585,6 @@ async function bootstrap() {
 
   bindEvents();
   await checkUrlMigrationOnBoot();
-  renderAll();
   await initFaceIdGuard();
   startAutoSyncDaemon();
 }

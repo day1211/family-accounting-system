@@ -23,6 +23,34 @@ input, textarea, select {
   -webkit-user-select: auto;
 }
 
+/* iPhone 動態島 (Dynamic Island) 與全螢幕主畫面 PWA 安全距離 */
+.pt-safe-header {
+  padding-top: calc(var(--safe-top) + 0.75rem);
+}
+
+.pt-safe-lock {
+  padding-top: calc(var(--safe-top) + 2.25rem);
+  padding-bottom: calc(var(--safe-bottom) + 2rem);
+}
+
+.top-safe-toast {
+  top: calc(var(--safe-top) + 0.75rem);
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    .pt-safe-header {
+      padding-top: max(calc(env(safe-area-inset-top, 54px) + 0.65rem), 3.85rem);
+    }
+    .pt-safe-lock {
+      padding-top: max(calc(env(safe-area-inset-top, 54px) + 1.5rem), 4.5rem);
+    }
+    .top-safe-toast {
+      top: max(calc(env(safe-area-inset-top, 54px) + 0.5rem), 3.75rem);
+    }
+  }
+}
+
 /* Harmonious Deep Slate-Indigo Hero Card (Percento Style) */
 .percento-hero-gradient {
   background: linear-gradient(135deg, #1E1B4B 0%, #312E81 55%, #3730A3 100%);
