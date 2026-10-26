@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=12';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=12';
-import { Storage } from './storage.js?v=12';
-import { Auth } from './auth.js?v=12';
-import { Api } from './api.js?v=12';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=13';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=13';
+import { Storage } from './storage.js?v=13';
+import { Auth } from './auth.js?v=13';
+import { Api } from './api.js?v=13';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 

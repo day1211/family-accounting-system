@@ -68,26 +68,48 @@ function promptCreateAnnualSheet() {
 let CURRENT_REQUEST_CALLBACK = '';
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.mode === 'bridge') {
-    const bridgeHtml = `<!DOCTYPE html>
+  if (e && e.parameter && e.parameter.mode === 'postmessage') {
+    const rpcId = String(e.parameter.rpcId || '');
+    let payload = { ...e.parameter };
+    if (e.parameter.data) {
+      try {
+        const parsed = JSON.parse(e.parameter.data);
+        payload = { ...payload, ...parsed };
+      } catch (err) {}
+    }
+
+    const lock = LockService.getScriptLock();
+    lock.tryLock(10000);
+    let resultObj;
+    try {
+      CURRENT_REQUEST_CALLBACK = '';
+      const out = handleApiDispatch(payload);
+      resultObj = JSON.parse(out.getContent());
+    } catch (err) {
+      resultObj = {
+        ok: false,
+        error: err && err.message ? err.message : String(err)
+      };
+    } finally {
+      lock.releaseLock();
+    }
+
+    const postHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head><body>
 <script>
-  window.addEventListener('message', function(ev) {
-    var msg = ev.data;
-    if (!msg || !msg.__fasRpcId) return;
-    google.script.run
-      .withSuccessHandler(function(res) {
-        window.parent.postMessage({ __fasRpcId: msg.__fasRpcId, ok: true, data: res }, '*');
-      })
-      .withFailureHandler(function(err) {
-        window.parent.postMessage({ __fasRpcId: msg.__fasRpcId, ok: false, error: err && err.message ? err.message : String(err) }, '*');
-      })
-      .handleBridgeRpc(msg.payload);
-  });
-  window.parent.postMessage({ __fasBridgeReady: true }, '*');
+  (function() {
+    var msg = {
+      __fasRpcId: ${JSON.stringify(rpcId)},
+      ok: true,
+      data: ${JSON.stringify(resultObj)}
+    };
+    try { window.top.postMessage(msg, '*'); } catch (e) {}
+    try { if (window.parent && window.parent !== window.top) window.parent.postMessage(msg, '*'); } catch (e) {}
+    try { if (window.parent && window.parent.parent) window.parent.parent.postMessage(msg, '*'); } catch (e) {}
+  })();
 </script>
 </body></html>`;
-    return HtmlService.createHtmlOutput(bridgeHtml)
+    return HtmlService.createHtmlOutput(postHtml)
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 

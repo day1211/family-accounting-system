@@ -28,8 +28,8 @@
           const keys = await caches.keys();
           for (const k of keys) await caches.delete(k);
         }
-        if (localStorage.getItem('wc_sw_version') !== 'v12') {
-          localStorage.setItem('wc_sw_version', 'v12');
+        if (localStorage.getItem('wc_sw_version') !== 'v13') {
+          localStorage.setItem('wc_sw_version', 'v13');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=12" />
+  <link rel="stylesheet" href="./css/styles.css?v=13" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -754,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=12"></script>
+  <script type="module" src="./js/app.js?v=13"></script>
 </body>
 </html>

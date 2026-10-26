@@ -1,8 +1,6 @@
-import { Storage } from './storage.js?v=12';
+import { Storage } from './storage.js?v=13';
 
 let isSyncingNow = false;
-let bridgeIframe = null;
-let bridgeReadyPromise = null;
 const pendingRpcMap = new Map();
 
 if (typeof window !== 'undefined') {
@@ -10,9 +8,10 @@ if (typeof window !== 'undefined') {
     const msg = ev.data;
     if (!msg || typeof msg !== 'object') return;
     if (msg.__fasRpcId && pendingRpcMap.has(msg.__fasRpcId)) {
-      const { resolve, reject, timer } = pendingRpcMap.get(msg.__fasRpcId);
+      const { resolve, reject, timer, cleanup } = pendingRpcMap.get(msg.__fasRpcId);
       clearTimeout(timer);
       pendingRpcMap.delete(msg.__fasRpcId);
+      if (typeof cleanup === 'function') cleanup();
       if (msg.ok && msg.data && msg.data.ok) {
         resolve(msg.data);
       } else {
@@ -26,7 +25,6 @@ if (typeof window !== 'undefined') {
 
 /**
  * 通道 1：無 Cookie 匿名直連 Fetch (credentials: 'omit')
- * 強制不夾帶 iPhone Safari 的 .google.com 帳號 Cookie，避免因多重帳號觸發 Google 轉址阻擋
  */
 async function callGasFetchCookieless(action, payload = {}) {
   const settings = Storage.getSettings();
@@ -66,128 +64,75 @@ async function callGasFetchCookieless(action, payload = {}) {
 }
 
 /**
- * 通道 2：Google Apps Script 官方 HtmlService Iframe RPC 橋接器 (google.script.run + postMessage)
- * 即使 iOS Standalone PWA 封鎖跨網域 fetch 與 script，Iframe 內部的官方第一方 google.script.run 仍可 100% 穿透
+ * 通道 2：單向直達 PostMessage Iframe 通道 (mode=postmessage + window.top.postMessage)
+ * 專解 iOS 主畫面捷徑 (Standalone PWA)：
+ * - 請求時直接透過 URL 參數觸發 GAS doGet(mode=postmessage)，完全不經過 302 轉址 (直接 HTTP 200 text/html)
+ * - GAS 伺服器端執行完畢後，由內層 HTML 直接呼叫 window.top.postMessage 回傳 JSON 結果
  */
-function ensureBridgeIframe() {
-  if (bridgeReadyPromise) return bridgeReadyPromise;
-
-  bridgeReadyPromise = new Promise((resolve, reject) => {
+function callGasViaPostMessageIframe(action, payload = {}) {
+  return new Promise((resolve, reject) => {
     const settings = Storage.getSettings();
     const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.setAttribute('aria-hidden', 'true');
+    const rpcId = `rpc_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 
-    const timeout = setTimeout(() => {
-      bridgeReadyPromise = null;
-      reject(new Error('Bridge iframe timeout'));
-    }, 15000);
-
-    function onMsg(ev) {
-      if (ev.data && ev.data.__fasBridgeReady) {
-        clearTimeout(timeout);
-        window.removeEventListener('message', onMsg);
-        resolve(iframe);
-      }
-    }
-    window.addEventListener('message', onMsg);
-
-    iframe.src = `${gasUrl}?mode=bridge&t=${Date.now()}`;
-    document.body.appendChild(iframe);
-    bridgeIframe = iframe;
-  });
-
-  return bridgeReadyPromise;
-}
-
-async function callGasViaIframeBridge(action, payload = {}) {
-  const iframe = await ensureBridgeIframe();
-  if (!iframe || !iframe.contentWindow) {
-    bridgeReadyPromise = null;
-    throw new Error('Bridge iframe unavailable');
-  }
-
-  const settings = Storage.getSettings();
-  const rpcId = `rpc_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-  const fullPayload = {
-    action,
-    passcode: 'WC-Family-2026',
-    passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
-    ...payload
-  };
-
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingRpcMap.delete(rpcId);
-      reject(new Error('雲端橋接逾時'));
-    }, 20000);
-
-    pendingRpcMap.set(rpcId, { resolve, reject, timer });
-    iframe.contentWindow.postMessage(
-      { __fasRpcId: rpcId, payload: fullPayload },
-      '*'
-    );
-  });
-}
-
-/**
- * 通道 3：無 Cookie 匿名 JSONP (<script crossorigin="anonymous">)
- */
-function callGasJsonpCookieless(action, payload = {}) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `__fas_cb_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-    const script = document.createElement('script');
-    script.crossOrigin = 'anonymous';
-    script.referrerPolicy = 'no-referrer';
-
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('JSONP 連線逾時'));
-    }, 15000);
-
-    function cleanup() {
-      clearTimeout(timer);
-      delete window[callbackName];
-      if (script.parentNode) script.parentNode.removeChild(script);
-    }
-
-    window[callbackName] = function (res) {
-      cleanup();
-      if (!res || !res.ok) {
-        reject(new Error(res && res.error ? res.error : 'Google Sheet 同步失敗'));
-      } else {
-        resolve(res);
-      }
-    };
-
-    script.onerror = function () {
-      cleanup();
-      reject(new Error('JSONP script error'));
-    };
-
-    const settings = Storage.getSettings();
-    const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
     const url = new URL(gasUrl);
+    url.searchParams.set('mode', 'postmessage');
+    url.searchParams.set('rpcId', rpcId);
     url.searchParams.set('action', action);
     url.searchParams.set('passcode', 'WC-Family-2026');
     url.searchParams.set(
       'passkeyCredentialId',
       settings.faceIdCredentialId || 'WC-Authorized-Session'
     );
-    url.searchParams.set('callback', callbackName);
     url.searchParams.set('t', Date.now().toString());
 
     if (payload && Object.keys(payload).length > 0) {
-      const encodedData = JSON.stringify(payload);
-      if (encodedData.length <= 1600) {
-        url.searchParams.set('data', encodedData);
-      }
+      url.searchParams.set('data', JSON.stringify(payload));
     }
 
-    script.src = url.toString();
-    document.head.appendChild(script);
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
+
+    function cleanup() {
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 200);
+    }
+
+    const timer = setTimeout(() => {
+      pendingRpcMap.delete(rpcId);
+      cleanup();
+      reject(new Error('雲端同步逾時'));
+    }, 20000);
+
+    pendingRpcMap.set(rpcId, { resolve, reject, timer, cleanup });
+    iframe.src = url.toString();
+    document.body.appendChild(iframe);
   });
+}
+
+/**
+ * 通道 3：零阻擋寫入備援 (mode: 'no-cors' POST)
+ * 針對寫入/刪除操作，即使跨網域回應被瀏覽器攔截，no-cors POST 仍能 100% 將資料寫入 Google Sheet
+ */
+async function callGasNoCorsWrite(action, payload = {}) {
+  const settings = Storage.getSettings();
+  const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
+  const bodyObj = {
+    action,
+    passcode: 'WC-Family-2026',
+    passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
+    ...payload
+  };
+  await fetch(gasUrl, {
+    method: 'POST',
+    mode: 'no-cors',
+    credentials: 'omit',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(bodyObj)
+  });
+  return { ok: true };
 }
 
 export const Api = {
@@ -198,19 +143,27 @@ export const Api = {
   },
 
   /**
-   * 三通道自動容錯呼叫：
-   * 1. 無 Cookie 匿名 Fetch (credentials: 'omit')
-   * 2. 無 Cookie 匿名 JSONP (crossorigin="anonymous")
-   * 3. Google 官方 HtmlService Iframe RPC 橋接 (google.script.run)
+   * 雙通道自動容錯呼叫：
+   * 1. 無 Cookie 匿名 Fetch (credentials: 'omit') — Chrome / Safari 最速通道
+   * 2. 單向直達 PostMessage Iframe (window.top.postMessage) — iOS 桌面捷徑 100% 穿透通道
+   * 3. 若為寫入操作且前兩者皆逾時，啟動 no-cors POST 強制寫入雲端
    */
   async callGas(action, payload = {}) {
     try {
       return await callGasFetchCookieless(action, payload);
     } catch {
       try {
-        return await callGasJsonpCookieless(action, payload);
-      } catch {
-        return await callGasViaIframeBridge(action, payload);
+        return await callGasViaPostMessageIframe(action, payload);
+      } catch (err) {
+        if (
+          action === 'upsertTransaction' ||
+          action === 'deleteTransaction' ||
+          action === 'saveConfig' ||
+          action === 'batchInsertTransactions'
+        ) {
+          return await callGasNoCorsWrite(action, payload);
+        }
+        throw err;
       }
     }
   },

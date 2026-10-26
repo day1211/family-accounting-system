@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=12';
+import { Storage } from './storage.js?v=13';
 
 let isVerifyingNow = false;
 
