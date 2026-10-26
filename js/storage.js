@@ -6,17 +6,17 @@ import {
 } from './defaultData.js';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v2',
-  CATEGORIES: 'wc_fas_categories_v2',
-  MEMBERS: 'wc_fas_members_v2',
-  TEMPLATES: 'wc_fas_templates_v2',
-  SETTINGS: 'wc_fas_settings_v2',
-  PENDING_QUEUE: 'wc_fas_pending_queue_v2'
+  TRANSACTIONS: 'wc_fas_transactions_v3',
+  CATEGORIES: 'wc_fas_categories_v3',
+  MEMBERS: 'wc_fas_members_v3',
+  TEMPLATES: 'wc_fas_templates_v3',
+  SETTINGS: 'wc_fas_settings_v3',
+  PENDING_QUEUE: 'wc_fas_pending_queue_v3'
 };
 
 const DEFAULT_SETTINGS = {
-  gasUrl: '',
-  passcode: '',
+  gasUrl: 'https://script.google.com/macros/s/AKfycbzCzJplcmz9DuzR70f99RzpZmXltzVAEPBuB9B7xRJxVH9Uy9MYEdPMQUuSYiT5VU0UJQ/exec',
+  passcode: 'WC-Family-2026',
   defaultMember: 'Willie',
   monthlyBudget: 80000,
   faceIdEnabled: false,
