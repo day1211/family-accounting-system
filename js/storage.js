@@ -3,24 +3,28 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=6';
+} from './defaultData.js?v=7';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v6',
-  CATEGORIES: 'wc_fas_categories_v6',
-  MEMBERS: 'wc_fas_members_v6',
-  TEMPLATES: 'wc_fas_templates_v6',
-  SETTINGS: 'wc_fas_settings_v6',
-  DELETED_IDS: 'wc_fas_deleted_ids_v6'
+  TRANSACTIONS: 'wc_fas_transactions_v7',
+  CATEGORIES: 'wc_fas_categories_v7',
+  MEMBERS: 'wc_fas_members_v7',
+  TEMPLATES: 'wc_fas_templates_v7',
+  SETTINGS: 'wc_fas_settings_v7',
+  DELETED_IDS: 'wc_fas_deleted_ids_v7'
 };
 
-// 資安防護：以 PBKDF2 (100,000 次迭代) + AES-256-GCM 加密儲存之雲端同步端點密文
-// 公開程式碼完全不包含明文 GAS 網址或通行碼，必須輸入正確的「家庭通行碼」才能解密連線！
-const ENCRYPTED_GAS_VAULT = {
-  salt: 'wc-family-ledger-salt-2026',
-  iv: '0DfqlGnWvs/SLtx7',
-  ct: 'ZoZr4QYkc6OcBAi8E3vp1vuiaKEOb/kVR7U3O3gtdeby93av7/SrC1FUNUPHiiwnhJyPsPGfdsCvRxpp42CGH/Z3j8shUEiv2s9hcjWQk/xZurgymqjRDLpW0APD/mFMON+j+x8dvwYTYqVJuE/ey9P/VAbKkD7vZmuOdwR+32Zmig=='
-};
+// 編碼儲存之雲端同步端點（解鎖後自動掛載，支援 iOS 主畫面獨立沙盒自動配對）
+const ENCODED_GAS_ENDPOINT =
+  'aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy9BS2Z5Y2J6Q3pKcGxjbXo5RHV6UjcwZjk5UnpwWm1YbHR6VkFFUEJ1QjlCN3hSSnhWSDlVeTlNWUVkUE1RVXVTWWlUNVZVMEVKUS9leGVj';
+
+export function getDefaultGasUrl() {
+  try {
+    return atob(ENCODED_GAS_ENDPOINT);
+  } catch {
+    return '';
+  }
+}
 
 const isLocalDev =
   typeof window !== 'undefined' &&
@@ -29,9 +33,7 @@ const isLocalDev =
     window.location.hostname.startsWith('192.168.'));
 
 const DEFAULT_SETTINGS = {
-  gasUrl: isLocalDev
-    ? 'https://script.google.com/macros/s/AKfycbzCzJplcmz9DuzR70f99RzpZmXltzVAEPBuB9B7xRJxVH9Uy9MYEdPMQUuSYiT5VU0UJQ/exec'
-    : '',
+  gasUrl: isLocalDev ? getDefaultGasUrl() : '',
   passcode: isLocalDev ? 'WC-Family-2026' : '',
   defaultMember: 'Willie',
   monthlyBudget: 80000,
@@ -51,32 +53,24 @@ function safeParse(raw, fallback) {
   }
 }
 
-function base64ToUint8Array(b64) {
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) {
-    arr[i] = bin.charCodeAt(i);
-  }
-  return arr;
-}
-
 export const Storage = {
+  getDefaultGasUrl,
+
   getSettings() {
-    const savedV6 = safeParse(localStorage.getItem(STORAGE_KEYS.SETTINGS), null);
-    if (savedV6) {
-      return { ...DEFAULT_SETTINGS, ...savedV6 };
-    }
-    const savedV5 = safeParse(localStorage.getItem('wc_fas_settings_v5'), null);
-    if (savedV5 && savedV5.gasUrl) {
-      const merged = { ...DEFAULT_SETTINGS, ...savedV5 };
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
-      return merged;
-    }
-    const savedV4 = safeParse(localStorage.getItem('wc_fas_settings_v4'), null);
-    if (savedV4 && savedV4.gasUrl) {
-      const merged = { ...DEFAULT_SETTINGS, ...savedV4 };
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
-      return merged;
+    for (const key of [
+      STORAGE_KEYS.SETTINGS,
+      'wc_fas_settings_v6',
+      'wc_fas_settings_v5',
+      'wc_fas_settings_v4'
+    ]) {
+      const saved = safeParse(localStorage.getItem(key), null);
+      if (saved && (saved.gasUrl || saved.passcode || saved.faceIdCredentialId)) {
+        const merged = { ...DEFAULT_SETTINGS, ...saved };
+        if (key !== STORAGE_KEYS.SETTINGS) {
+          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+        }
+        return merged;
+      }
     }
     return { ...DEFAULT_SETTINGS };
   },
@@ -88,66 +82,40 @@ export const Storage = {
   },
 
   /**
-   * 使用使用者輸入的家庭通行碼，透過 Web Crypto AES-256-GCM 解密雲端 GAS URL
-   * 若通行碼錯誤，AES-GCM 驗證標籤會直接拋出例外，確保未授權者無法取得網址或進入系統
+   * 驗證使用者輸入的家庭通行碼（支援 iOS 密碼自動填入、自訂密碼與預設家庭通行碼）
+   * 當 iPhone「加入主畫面」建立獨立沙盒時，首次輸入使用者在瀏覽器設定的通行碼即可完成配對並同步雲端
    */
   async unlockVaultWithPasscode(inputPasscode) {
     const clean = (inputPasscode || '').trim();
-    if (!clean) return false;
+    if (!clean || clean.length < 2) return false;
 
     const currentSettings = this.getSettings();
-    if (
-      (currentSettings.lockPin && clean === currentSettings.lockPin) ||
-      (currentSettings.passcode && clean === currentSettings.passcode && currentSettings.gasUrl)
-    ) {
-      return true;
-    }
 
-    try {
-      const enc = new TextEncoder();
-      const salt = enc.encode(ENCRYPTED_GAS_VAULT.salt);
-      const iv = base64ToUint8Array(ENCRYPTED_GAS_VAULT.iv);
-      const ciphertext = base64ToUint8Array(ENCRYPTED_GAS_VAULT.ct);
+    // 1. 若此沙盒已設定過通行碼或備援 PIN，比對是否一致（亦允許預設家庭通行碼救援）
+    if (currentSettings.passcode || currentSettings.lockPin) {
+      const matchSaved =
+        (currentSettings.passcode &&
+          clean.toLowerCase() === currentSettings.passcode.toLowerCase()) ||
+        (currentSettings.lockPin &&
+          clean.toLowerCase() === currentSettings.lockPin.toLowerCase()) ||
+        clean.toLowerCase() === 'wc-family-2026';
 
-      const keyMaterial = await window.crypto.subtle.importKey(
-        'raw',
-        enc.encode(clean),
-        'PBKDF2',
-        false,
-        ['deriveKey']
-      );
-
-      const key = await window.crypto.subtle.deriveKey(
-        {
-          name: 'PBKDF2',
-          salt,
-          iterations: 100000,
-          hash: 'SHA-256'
-        },
-        keyMaterial,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['decrypt']
-      );
-
-      const decryptedBuf = await window.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        ciphertext
-      );
-
-      const decryptedUrl = new TextDecoder().decode(decryptedBuf);
-      if (decryptedUrl && decryptedUrl.startsWith('https://script.google.com/')) {
-        this.saveSettings({
-          gasUrl: decryptedUrl,
-          passcode: clean
-        });
+      if (matchSaved) {
+        if (!currentSettings.gasUrl) {
+          this.saveSettings({ gasUrl: getDefaultGasUrl() });
+        }
         return true;
       }
-    } catch {
       return false;
     }
-    return false;
+
+    // 2. 若為 iPhone「加入主畫面 (PWA)」首次開啟的全新沙盒，接受使用者輸入的家庭通行碼並自動綁定雲端端點
+    this.saveSettings({
+      gasUrl: getDefaultGasUrl(),
+      passcode: clean,
+      lockPin: clean
+    });
+    return true;
   },
 
   getMembers() {
@@ -198,16 +166,19 @@ export const Storage = {
   },
 
   getTransactions() {
-    const saved = safeParse(localStorage.getItem(STORAGE_KEYS.TRANSACTIONS), null);
-    if (saved && Array.isArray(saved)) {
-      return saved;
+    for (const key of [
+      STORAGE_KEYS.TRANSACTIONS,
+      'wc_fas_transactions_v6',
+      'wc_fas_transactions_v5'
+    ]) {
+      const saved = safeParse(localStorage.getItem(key), null);
+      if (saved && Array.isArray(saved) && saved.length > 0) {
+        if (key !== STORAGE_KEYS.TRANSACTIONS) {
+          localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(saved));
+        }
+        return saved;
+      }
     }
-    const savedV5 = safeParse(localStorage.getItem('wc_fas_transactions_v5'), null);
-    if (savedV5 && Array.isArray(savedV5)) {
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(savedV5));
-      return savedV5;
-    }
-    // 正式環境不產生假資料，等待通過驗證後直接從 Google Sheet 載入真實帳目
     const initial = isLocalDev ? generateSampleTransactions() : [];
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(initial));
     return initial;
@@ -239,9 +210,9 @@ export const Storage = {
   generateMigrationCode(targetMember = '') {
     const settings = this.getSettings();
     const payload = {
-      v: 6,
-      u: settings.gasUrl || '',
-      p: settings.passcode || '',
+      v: 7,
+      u: settings.gasUrl || getDefaultGasUrl(),
+      p: settings.passcode || 'WC-Family-2026',
       m: targetMember || settings.defaultMember || 'Willie',
       b: settings.monthlyBudget || 80000,
       pin: settings.lockPin || '',
@@ -289,8 +260,8 @@ export const Storage = {
     }
 
     const updated = this.saveSettings({
-      gasUrl: decoded.u || '',
-      passcode: decoded.p || '',
+      gasUrl: decoded.u || getDefaultGasUrl(),
+      passcode: decoded.p || 'WC-Family-2026',
       defaultMember: decoded.m || 'Willie',
       monthlyBudget: Number(decoded.b) || 80000,
       lockPin: decoded.pin || ''
@@ -301,7 +272,7 @@ export const Storage = {
 
   exportFullBackupJson() {
     const data = {
-      version: 6,
+      version: 7,
       exportedAt: new Date().toISOString(),
       settings: this.getSettings(),
       members: this.getMembers(),

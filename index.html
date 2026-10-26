@@ -20,7 +20,7 @@
   <script>
     (async function () {
       try {
-        if (localStorage.getItem('wc_sw_version') !== 'v6') {
+        if (localStorage.getItem('wc_sw_version') !== 'v7') {
           if ('serviceWorker' in navigator) {
             const regs = await navigator.serviceWorker.getRegistrations();
             for (const r of regs) await r.unregister();
@@ -29,7 +29,7 @@
             const keys = await caches.keys();
             for (const k of keys) await caches.delete(k);
           }
-          localStorage.setItem('wc_sw_version', 'v6');
+          localStorage.setItem('wc_sw_version', 'v7');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,12 +39,12 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=6" />
+  <link rel="stylesheet" href="./css/styles.css?v=7" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
   <!-- =====================================================================
-       Face ID / 通行碼 強制門禁鎖定畫面 (未驗證前預設顯示，阻擋未授權/無痕存取)
+       Face ID / 通行碼 強制門禁鎖定畫面 (支援跨 Chrome / 主畫面共用 iOS 通行密鑰)
        ===================================================================== -->
   <div id="lock-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-between bg-slate-950 px-6 pt-safe-lock text-white">
     <div class="mt-2 text-center">
@@ -64,18 +64,18 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M7 3H5a2 2 0 00-2 2v2m14-4h2a2 2 0 012 2v2M7 21H5a2 2 0 01-2-2v-2m14 4h2a2 2 0 002-2v-2M9 9h.01M15 9h.01M12 9v3m-2.5 3.5a3.5 3.5 0 005 0" />
         </svg>
       </button>
-      <p id="lock-faceid-hint" class="mt-5 text-sm font-semibold text-slate-200">點擊使用 Face ID 解鎖</p>
+      <p id="lock-faceid-hint" class="mt-5 text-sm font-semibold text-slate-200">點擊使用 Face ID (iOS 通行密鑰) 解鎖</p>
       <p id="lock-error-msg" class="mt-2 text-xs text-amber-300/90 min-h-[1.25rem] text-center px-2"></p>
 
-      <div class="mt-6 w-full border-t border-slate-800/80 pt-5">
-        <label class="block text-xs text-slate-400 mb-2 text-center">首次連線 / 無痕模式請輸入家庭通行碼解鎖</label>
+      <form id="form-unlock-passcode" class="mt-6 w-full border-t border-slate-800/80 pt-5">
+        <label class="block text-xs text-slate-400 mb-2 text-center">或輸入家庭通行碼 / iOS 儲存的密碼解鎖</label>
         <div class="flex gap-2">
-          <input id="input-unlock-passcode" type="password" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" />
-          <button id="btn-unlock-passcode" type="button" class="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs font-extrabold text-white transition">
+          <input id="input-unlock-passcode" type="password" autocomplete="current-password webauthn" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" />
+          <button id="btn-unlock-passcode" type="submit" class="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs font-extrabold text-white transition">
             驗證解鎖
           </button>
         </div>
-      </div>
+      </form>
     </div>
 
     <div class="text-[11px] text-slate-500 text-center">
@@ -754,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=6"></script>
+  <script type="module" src="./js/app.js?v=7"></script>
 </body>
 </html>

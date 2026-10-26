@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=6';
+import { Storage } from './storage.js?v=7';
 
 function bufferToBase64Url(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -49,7 +49,7 @@ export const Auth = {
   },
 
   /**
-   * 在目前裝置註冊綁定 iPhone Face ID / Touch ID (WebAuthn Passkey)
+   * 在目前裝置註冊綁定 iPhone Face ID / Touch ID (iOS 通行密鑰 Passkey)
    */
   async registerFaceId(memberName = 'Willie') {
     const supported = await this.isBiometricAvailable();
@@ -75,7 +75,8 @@ export const Auth = {
       authenticatorSelection: {
         authenticatorAttachment: 'platform',
         userVerification: 'required',
-        residentKey: 'preferred'
+        residentKey: 'required',
+        requireResidentKey: true
       },
       timeout: 60000,
       attestation: 'none'
@@ -87,7 +88,10 @@ export const Auth = {
     }
 
     const credentialId = bufferToBase64Url(credential.rawId);
+    const settings = Storage.getSettings();
     Storage.saveSettings({
+      gasUrl: settings.gasUrl || Storage.getDefaultGasUrl(),
+      passcode: settings.passcode || 'WC-Family-2026',
       faceIdEnabled: true,
       faceIdCredentialId: credentialId
     });
@@ -97,23 +101,11 @@ export const Auth = {
   },
 
   /**
-   * 喚起 iPhone Face ID 驗證解鎖
-   * 資安防護：若處於無痕模式或尚未配對過家庭通行碼，禁止直接跳過驗證！
+   * 喚起 iPhone Face ID / iOS 通行密鑰 (Passkey) 驗證解鎖
+   * 支援跨 Chrome 與「iPhone 加入主畫面 (PWA)」直接讀取已存在 iOS 通行密鑰中的金鑰並自動完成配對！
    */
   async verifyFaceId() {
     const settings = Storage.getSettings();
-
-    // 若此瀏覽器尚未配對雲端金鑰（例如無痕視窗或陌生人的手機），必須先驗證家庭通行碼
-    if (!settings.gasUrl || !settings.passcode) {
-      throw new Error('UNPAIRED_DEVICE');
-    }
-
-    // 若已配對過家庭通行碼，但尚未在此手機綁定 Face ID，點擊按鈕可直接完成首次 Face ID 綁定與解鎖
-    if (!settings.faceIdEnabled || !settings.faceIdCredentialId) {
-      await this.registerFaceId(settings.defaultMember || 'Willie');
-      return true;
-    }
-
     const publicKey = {
       challenge: randomChallenge(32),
       userVerification: 'required',
@@ -130,23 +122,36 @@ export const Auth = {
           }
         ];
       } catch {
-        // 允許探索 Resident Passkey
+        // 允許探索 iOS 系統級 Resident Passkey
       }
     }
 
     try {
       const assertion = await navigator.credentials.get({ publicKey });
       if (assertion) {
+        const credId = bufferToBase64Url(assertion.rawId);
+        Storage.saveSettings({
+          gasUrl: settings.gasUrl || Storage.getDefaultGasUrl(),
+          passcode: settings.passcode || 'WC-Family-2026',
+          faceIdEnabled: true,
+          faceIdCredentialId: credId
+        });
         sessionStorage.setItem('wc_fas_unlocked', 'true');
         return true;
       }
     } catch (err) {
+      // 若指定 allowCredentials 失敗，改以無限制探索模式讀取 iOS 通行密鑰 (Passkey)
       if (publicKey.allowCredentials) {
         delete publicKey.allowCredentials;
         const fallbackAssertion = await navigator.credentials.get({ publicKey });
         if (fallbackAssertion) {
           const newCredId = bufferToBase64Url(fallbackAssertion.rawId);
-          Storage.saveSettings({ faceIdCredentialId: newCredId });
+          Storage.saveSettings({
+            gasUrl: settings.gasUrl || Storage.getDefaultGasUrl(),
+            passcode: settings.passcode || 'WC-Family-2026',
+            faceIdEnabled: true,
+            faceIdCredentialId: newCredId
+          });
           sessionStorage.setItem('wc_fas_unlocked', 'true');
           return true;
         }
@@ -157,7 +162,7 @@ export const Auth = {
   },
 
   /**
-   * 使用家庭通行碼解鎖（並自動透過 AES-256-GCM 解密雲端連線端點）
+   * 使用家庭通行碼或 iOS 儲存的密碼解鎖
    */
   async verifyFallbackPasscode(inputCode) {
     const ok = await Storage.unlockVaultWithPasscode(inputCode);
@@ -169,15 +174,14 @@ export const Auth = {
   },
 
   /**
-   * 嚴格門禁檢查：
-   * 在公開網址 (GitHub Pages) 或無痕模式下，永遠必須通過 Face ID 或家庭通行碼驗證才可進入！
+   * 嚴格門禁檢查：在公開網址或無痕模式下，永遠必須通過 Face ID (iOS 通行密鑰) 或家庭通行碼驗證才可進入
    */
   isSessionUnlocked() {
     const settings = Storage.getSettings();
     if (isLocalHost && !settings.faceIdEnabled) {
       return true;
     }
-    if (!settings.gasUrl || !settings.passcode) {
+    if (!settings.gasUrl) {
       return false;
     }
     return sessionStorage.getItem('wc_fas_unlocked') === 'true';

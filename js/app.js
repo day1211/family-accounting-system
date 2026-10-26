@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=6';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=6';
-import { Storage } from './storage.js?v=6';
-import { Auth } from './auth.js?v=6';
-import { Api } from './api.js?v=6';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=7';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=7';
+import { Storage } from './storage.js?v=7';
+import { Auth } from './auth.js?v=7';
+import { Api } from './api.js?v=7';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -110,40 +110,34 @@ async function initFaceIdGuard() {
   const settings = Storage.getSettings();
   const hintEl = document.getElementById('lock-faceid-hint');
   const errEl = document.getElementById('lock-error-msg');
+  if (hintEl) hintEl.textContent = '點擊使用 Face ID (iOS 通行密鑰) 解鎖';
+  if (errEl) errEl.textContent = '';
 
-  if (!settings.gasUrl || !settings.passcode) {
-    if (hintEl) hintEl.textContent = '請先輸入下方「家庭通行碼」驗證身分';
-    if (errEl) errEl.textContent = '首次於此瀏覽器或無痕模式開啟，需先驗證家庭通行碼';
-    return;
-  }
+  const isStandalonePwa =
+    window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches;
 
-  if (settings.faceIdEnabled) {
-    if (hintEl) hintEl.textContent = '點擊使用 Face ID 解鎖';
+  // 若已啟用 Face ID 或從 iPhone 桌面主畫面開啟，自動喚起 iOS 通行密鑰 Face ID
+  if (settings.faceIdEnabled || isStandalonePwa) {
     setTimeout(() => {
       handleFaceIdUnlock();
-    }, 250);
-  } else {
-    if (hintEl) hintEl.textContent = '點擊上方圖示一鍵啟用 Face ID 解鎖';
+    }, 300);
   }
 }
 
 async function handleFaceIdUnlock() {
   const errEl = document.getElementById('lock-error-msg');
-  if (errEl) errEl.textContent = '正在喚起 Face ID 生物辨識驗證...';
+  if (errEl) errEl.textContent = '正在喚起 iOS 通行密鑰 (Face ID) 驗證...';
   try {
     const ok = await Auth.verifyFaceId();
     if (ok) {
       if (errEl) errEl.textContent = '';
       showUnlockedAppUI();
-      showToast('Face ID 驗證解鎖成功');
+      showToast('Face ID (iOS 通行密鑰) 解鎖成功');
     }
-  } catch (err) {
+  } catch {
     if (errEl) {
-      if (err && err.message === 'UNPAIRED_DEVICE') {
-        errEl.textContent = '此瀏覽器尚未配對或處於無痕模式，請先輸入下方「家庭通行碼」解鎖';
-      } else {
-        errEl.textContent = 'Face ID 未完成驗證，請再次點擊圖示或輸入下方家庭通行碼解鎖';
-      }
+      errEl.textContent = '可再次點擊上方圖示使用 Face ID，或於下方輸入密碼解鎖';
     }
   }
 }
@@ -1198,12 +1192,16 @@ function bindEvents() {
     }
   };
 
-  document.getElementById('btn-unlock-passcode').addEventListener('click', handlePasscodeSubmit);
-  document.getElementById('input-unlock-passcode').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
+  const formUnlock = document.getElementById('form-unlock-passcode');
+  if (formUnlock) {
+    formUnlock.addEventListener('submit', (e) => {
       e.preventDefault();
       handlePasscodeSubmit();
-    }
+    });
+  }
+  document.getElementById('btn-unlock-passcode').addEventListener('click', (e) => {
+    e.preventDefault();
+    handlePasscodeSubmit();
   });
 
   document.querySelectorAll('.nav-tab-btn').forEach((btn) => {
@@ -1577,7 +1575,7 @@ function downloadFile(filename, content, mimeType) {
 async function bootstrap() {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./sw.js?v=6');
+      await navigator.serviceWorker.register('./sw.js?v=7');
     } catch {
       // ignore SW error
     }

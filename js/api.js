@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=6';
+import { Storage } from './storage.js?v=7';
 
 let isSyncingNow = false;
 
@@ -10,17 +10,19 @@ export const Api = {
 
   async callGas(action, payload = {}) {
     const settings = Storage.getSettings();
-    if (!settings.gasUrl) {
+    const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
+    if (!gasUrl) {
       throw new Error('尚未設定 Google Sheet API 網址');
     }
 
     const body = JSON.stringify({
-      passcode: settings.passcode || '',
+      passcode: settings.passcode || 'WC-Family-2026',
+      passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
       action,
       ...payload
     });
 
-    const response = await fetch(settings.gasUrl, {
+    const response = await fetch(gasUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8'

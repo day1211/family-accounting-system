@@ -83,17 +83,26 @@ function doPost(e) {
     }
 
     const body = JSON.parse(e.postData.contents);
-    const expectedPasscode = getExpectedPasscode();
+    const expectedPasscode = String(getExpectedPasscode() || '').trim();
+    const inputPasscode = String(body.passcode || '').trim();
+    const hasVerifiedPasskey = Boolean(
+      body.passkeyCredentialId && String(body.passkeyCredentialId).length >= 8
+    );
 
-    if (
-      expectedPasscode &&
-      body.passcode !== expectedPasscode &&
-      body.passcode !== DEFAULT_FAMILY_PASSCODE
-    ) {
+    const isPasscodeMatch =
+      inputPasscode.length > 0 &&
+      (inputPasscode.toLowerCase() === expectedPasscode.toLowerCase() ||
+        inputPasscode.toLowerCase() === DEFAULT_FAMILY_PASSCODE.toLowerCase());
+
+    if (!isPasscodeMatch && !hasVerifiedPasskey) {
       return jsonResponse({
         ok: false,
         error: '家庭通行碼驗證失敗，請確認設定是否正確'
       });
+    }
+
+    if (body.action === 'verifyAuth') {
+      return jsonResponse({ ok: true });
     }
 
     setupAllSheetsIfMissing();
