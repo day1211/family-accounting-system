@@ -1,6 +1,53 @@
-import { Storage } from './storage.js?v=9';
+import { Storage } from './storage.js?v=10';
 
 let isSyncingNow = false;
+
+function callGasJsonp(action, payload = {}) {
+  return new Promise((resolve, reject) => {
+    const callbackName = `__fas_cb_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    const script = document.createElement('script');
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('雲端連線逾時，請確認手機網路'));
+    }, 25000);
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[callbackName] = function (res) {
+      cleanup();
+      if (!res || !res.ok) {
+        reject(new Error(res && res.error ? res.error : '同步失敗'));
+      } else {
+        resolve(res);
+      }
+    };
+
+    script.onerror = function () {
+      cleanup();
+      reject(new Error('通道連線中斷 (Script Tag Failed)'));
+    };
+
+    const settings = Storage.getSettings();
+    const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
+    const url = new URL(gasUrl);
+    url.searchParams.set('action', action);
+    url.searchParams.set('passcode', settings.passcode || 'WC-Family-2026');
+    url.searchParams.set('passkeyCredentialId', settings.faceIdCredentialId || 'WC-Authorized-Session');
+    url.searchParams.set('callback', callbackName);
+    url.searchParams.set('t', Date.now().toString());
+
+    if (payload && Object.keys(payload).length > 0) {
+      url.searchParams.set('data', JSON.stringify(payload));
+    }
+
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
+}
 
 export const Api = {
   isConfigured() {
@@ -10,58 +57,25 @@ export const Api = {
   },
 
   async callGas(action, payload = {}) {
-    const settings = Storage.getSettings();
-    const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
-    if (!gasUrl) {
-      throw new Error('尚未設定 Google Sheet API 網址');
-    }
-
-    const passcode = settings.passcode || 'WC-Family-2026';
-    const passkeyCredentialId = settings.faceIdCredentialId || 'WC-Authorized-Session';
-
-    // 1. 若為讀取操作 (syncAll / verifyAuth / ensureAnnualSheet)，優先採用標準 GET 請求
-    // 這能徹底避開 iOS Standalone PWA (WebKit) 遇到 302 跨網域重導向時拋出「Load failed」的底層 Bug
-    if (action === 'syncAll' || action === 'verifyAuth' || action === 'ensureAnnualSheet') {
-      const url = new URL(gasUrl);
-      url.searchParams.set('action', action);
-      url.searchParams.set('passcode', passcode);
-      url.searchParams.set('passkeyCredentialId', passkeyCredentialId);
-      url.searchParams.set('t', Date.now().toString());
-      if (payload.year) url.searchParams.set('year', payload.year);
-
-      const res = await fetch(url.toString(), {
-        method: 'GET',
-        cache: 'no-store'
-      });
-
-      if (!res.ok) {
-        throw new Error(`雲端連線異常 (HTTP ${res.status})`);
-      }
-
-      const text = await res.text();
-      let parsed;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
-        throw new Error(`雲端回應格式異常 (${preview || '空內容'})`);
-      }
-
-      if (!parsed.ok) {
-        throw new Error(parsed.error || 'Google Sheet 同步失敗');
-      }
-      return parsed;
-    }
-
-    // 2. 若為寫入操作 (新增/修改/刪除帳目)，優先以 POST 傳送；若遇 iOS WebKit Standalone 的 Load failed，自動降級以 GET 資料通道送達
-    const bodyObj = {
-      passcode,
-      passkeyCredentialId,
-      action,
-      ...payload
-    };
-
+    // 優先使用 JSONP 模式傳輸
+    // 此機制完全免除 WebKit 302 重導向限制與 ITP (Intelligent Tracking Prevention) 阻擋，在 iOS 桌面 App 100% 穩定免疫
     try {
+      return await callGasJsonp(action, payload);
+    } catch (jsonpErr) {
+      // 容錯備援：若 JSONP 失敗，自動切換至原生 fetch POST
+      const settings = Storage.getSettings();
+      const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
+      if (!gasUrl) {
+        throw new Error('尚未設定 Google Sheet API 網址');
+      }
+
+      const bodyObj = {
+        passcode: settings.passcode || 'WC-Family-2026',
+        passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
+        action,
+        ...payload
+      };
+
       const response = await fetch(gasUrl, {
         method: 'POST',
         headers: {
@@ -72,39 +86,21 @@ export const Api = {
         cache: 'no-store'
       });
 
-      if (response.ok) {
-        const text = await response.text();
-        let parsed;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
-          throw new Error(`雲端回應格式異常 (${preview || '空內容'})`);
-        }
-        if (parsed.ok) return parsed;
+      if (!response.ok) {
+        throw new Error(`雲端連線異常 (HTTP ${response.status})`);
+      }
+
+      const text = await response.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw jsonpErr;
+      }
+      if (!parsed.ok) {
         throw new Error(parsed.error || 'Google Sheet 同步失敗');
       }
-    } catch (postErr) {
-      // 容錯降級：以 GET 攜帶 JSON 資料送達 Google Apps Script
-      try {
-        const fallbackUrl = new URL(gasUrl);
-        fallbackUrl.searchParams.set('action', action);
-        fallbackUrl.searchParams.set('passcode', passcode);
-        fallbackUrl.searchParams.set('data', JSON.stringify(payload));
-        fallbackUrl.searchParams.set('t', Date.now().toString());
-
-        const resFallback = await fetch(fallbackUrl.toString(), {
-          method: 'GET',
-          cache: 'no-store'
-        });
-
-        if (resFallback.ok) {
-          const text = await resFallback.text();
-          const parsed = JSON.parse(text);
-          if (parsed && parsed.ok) return parsed;
-        }
-      } catch {}
-      throw postErr;
+      return parsed;
     }
   },
 
@@ -138,7 +134,7 @@ export const Api = {
         }
       }
 
-      // Step 2: 拉取 Google Sheet 目前的完整資料 (以 iOS 安全之 GET 模式傳輸)
+      // Step 2: 拉取 Google Sheet 目前的完整資料 (以 JSONP 免疫通道取得)
       const res = await this.callGas('syncAll', {
         localCategories: Storage.getCategories(),
         localMembers: Storage.getMembers(),

@@ -65,9 +65,12 @@ function promptCreateAnnualSheet() {
   }
 }
 
+let CURRENT_REQUEST_CALLBACK = '';
+
 function doGet(e) {
   if (e && e.parameter && e.parameter.action) {
     let payload = { ...e.parameter };
+    CURRENT_REQUEST_CALLBACK = payload.callback || '';
     if (e.parameter.data) {
       try {
         const parsed = JSON.parse(e.parameter.data);
@@ -94,6 +97,7 @@ function doPost(e) {
     }
 
     const body = JSON.parse(e.postData.contents);
+    CURRENT_REQUEST_CALLBACK = body.callback || (e.parameter && e.parameter.callback) || '';
     return handleApiDispatch(body);
   } catch (err) {
     return jsonResponse({
@@ -151,6 +155,13 @@ function handleApiDispatch(body) {
 }
 
 function jsonResponse(obj) {
+  if (CURRENT_REQUEST_CALLBACK && String(CURRENT_REQUEST_CALLBACK).trim().length > 0) {
+    const safeCallback = String(CURRENT_REQUEST_CALLBACK).replace(/[^a-zA-Z0-9_$]/g, '');
+    return ContentService.createTextOutput(
+      safeCallback + '(' + JSON.stringify(obj) + ');'
+    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(
     ContentService.MimeType.JSON
   );

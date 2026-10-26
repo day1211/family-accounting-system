@@ -3,15 +3,15 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=9';
+} from './defaultData.js?v=10';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v9',
-  CATEGORIES: 'wc_fas_categories_v9',
-  MEMBERS: 'wc_fas_members_v9',
-  TEMPLATES: 'wc_fas_templates_v9',
-  SETTINGS: 'wc_fas_settings_v9',
-  DELETED_IDS: 'wc_fas_deleted_ids_v9'
+  TRANSACTIONS: 'wc_fas_transactions_v10',
+  CATEGORIES: 'wc_fas_categories_v10',
+  MEMBERS: 'wc_fas_members_v10',
+  TEMPLATES: 'wc_fas_templates_v10',
+  SETTINGS: 'wc_fas_settings_v10',
+  DELETED_IDS: 'wc_fas_deleted_ids_v10'
 };
 
 // 編碼儲存之雲端同步端點（解鎖後自動掛載，支援 iOS 主畫面獨立沙盒自動配對）
