@@ -3,7 +3,7 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=11';
+} from './defaultData.js?v=12';
 
 // 使用永久穩定的 Storage Key，確保版本更新時絕對不會遺失已綁定的 Face ID Credential ID
 const STORAGE_KEYS = {

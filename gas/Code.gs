@@ -68,6 +68,29 @@ function promptCreateAnnualSheet() {
 let CURRENT_REQUEST_CALLBACK = '';
 
 function doGet(e) {
+  if (e && e.parameter && e.parameter.mode === 'bridge') {
+    const bridgeHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head><body>
+<script>
+  window.addEventListener('message', function(ev) {
+    var msg = ev.data;
+    if (!msg || !msg.__fasRpcId) return;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        window.parent.postMessage({ __fasRpcId: msg.__fasRpcId, ok: true, data: res }, '*');
+      })
+      .withFailureHandler(function(err) {
+        window.parent.postMessage({ __fasRpcId: msg.__fasRpcId, ok: false, error: err && err.message ? err.message : String(err) }, '*');
+      })
+      .handleBridgeRpc(msg.payload);
+  });
+  window.parent.postMessage({ __fasBridgeReady: true }, '*');
+</script>
+</body></html>`;
+    return HtmlService.createHtmlOutput(bridgeHtml)
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   if (e && e.parameter && e.parameter.action) {
     let payload = { ...e.parameter };
     CURRENT_REQUEST_CALLBACK = payload.callback || '';
@@ -85,6 +108,23 @@ function doGet(e) {
     service: 'W&C Family Accounting System API',
     status: 'ready'
   });
+}
+
+function handleBridgeRpc(payload) {
+  const lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+  try {
+    CURRENT_REQUEST_CALLBACK = '';
+    const out = handleApiDispatch(payload || {});
+    return JSON.parse(out.getContent());
+  } catch (err) {
+    return {
+      ok: false,
+      error: err && err.message ? err.message : String(err)
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function doPost(e) {

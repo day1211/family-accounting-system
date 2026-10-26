@@ -28,8 +28,8 @@
           const keys = await caches.keys();
           for (const k of keys) await caches.delete(k);
         }
-        if (localStorage.getItem('wc_sw_version') !== 'v11') {
-          localStorage.setItem('wc_sw_version', 'v11');
+        if (localStorage.getItem('wc_sw_version') !== 'v12') {
+          localStorage.setItem('wc_sw_version', 'v12');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=11" />
+  <link rel="stylesheet" href="./css/styles.css?v=12" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -123,8 +123,8 @@
       </div>
     </header>
 
-    <!-- 頂部通知橫幅 -->
-    <div id="toast-banner" class="fixed top-safe-toast left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] rounded-2xl bg-slate-900/95 text-white px-4 py-3 text-xs font-medium shadow-xl border border-slate-800 flex items-center justify-between gap-2">
+    <!-- 底部懸浮通知橫幅 (不遮擋頂部導覽列) -->
+    <div id="toast-banner" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] rounded-2xl bg-slate-900/95 text-white px-4 py-3 text-xs font-medium shadow-xl border border-slate-800 flex items-center justify-between gap-2">
       <span id="toast-banner-text">操作成功</span>
       <button id="btn-close-toast" class="text-slate-400 hover:text-white text-xs">✕</button>
     </div>
@@ -754,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=11"></script>
+  <script type="module" src="./js/app.js?v=12"></script>
 </body>
 </html>

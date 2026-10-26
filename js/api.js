@@ -1,20 +1,150 @@
-import { Storage } from './storage.js?v=11';
+import { Storage } from './storage.js?v=12';
 
 let isSyncingNow = false;
+let bridgeIframe = null;
+let bridgeReadyPromise = null;
+const pendingRpcMap = new Map();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', (ev) => {
+    const msg = ev.data;
+    if (!msg || typeof msg !== 'object') return;
+    if (msg.__fasRpcId && pendingRpcMap.has(msg.__fasRpcId)) {
+      const { resolve, reject, timer } = pendingRpcMap.get(msg.__fasRpcId);
+      clearTimeout(timer);
+      pendingRpcMap.delete(msg.__fasRpcId);
+      if (msg.ok && msg.data && msg.data.ok) {
+        resolve(msg.data);
+      } else {
+        const errMsg =
+          (msg.data && msg.data.error) || msg.error || 'Google Sheet 同步失敗';
+        reject(new Error(errMsg));
+      }
+    }
+  });
+}
 
 /**
- * 純 JSONP (<script>) 雲端通訊通道：
- * 1. 徹底避開 iOS Standalone PWA (WebKit) 針對 fetch 跨網域 302 重導向與 ITP 的「Load failed」限制
- * 2. 嚴格控制 URL 長度在 1,500 字元以內，避免觸發 Google 伺服器 HTTP 400/413 URL 過長錯誤
+ * 通道 1：無 Cookie 匿名直連 Fetch (credentials: 'omit')
+ * 強制不夾帶 iPhone Safari 的 .google.com 帳號 Cookie，避免因多重帳號觸發 Google 轉址阻擋
  */
-function callGasJsonp(action, payload = {}) {
+async function callGasFetchCookieless(action, payload = {}) {
+  const settings = Storage.getSettings();
+  const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
+  const url = new URL(gasUrl);
+  url.searchParams.set('action', action);
+  url.searchParams.set('passcode', 'WC-Family-2026');
+  url.searchParams.set(
+    'passkeyCredentialId',
+    settings.faceIdCredentialId || 'WC-Authorized-Session'
+  );
+  url.searchParams.set('t', Date.now().toString());
+
+  if (payload && Object.keys(payload).length > 0) {
+    const encoded = JSON.stringify(payload);
+    if (encoded.length <= 1600) {
+      url.searchParams.set('data', encoded);
+    }
+  }
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    mode: 'cors',
+    credentials: 'omit',
+    redirect: 'follow',
+    cache: 'no-store'
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  if (!data || !data.ok) {
+    throw new Error((data && data.error) || '同步回應異常');
+  }
+  return data;
+}
+
+/**
+ * 通道 2：Google Apps Script 官方 HtmlService Iframe RPC 橋接器 (google.script.run + postMessage)
+ * 即使 iOS Standalone PWA 封鎖跨網域 fetch 與 script，Iframe 內部的官方第一方 google.script.run 仍可 100% 穿透
+ */
+function ensureBridgeIframe() {
+  if (bridgeReadyPromise) return bridgeReadyPromise;
+
+  bridgeReadyPromise = new Promise((resolve, reject) => {
+    const settings = Storage.getSettings();
+    const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.setAttribute('aria-hidden', 'true');
+
+    const timeout = setTimeout(() => {
+      bridgeReadyPromise = null;
+      reject(new Error('Bridge iframe timeout'));
+    }, 15000);
+
+    function onMsg(ev) {
+      if (ev.data && ev.data.__fasBridgeReady) {
+        clearTimeout(timeout);
+        window.removeEventListener('message', onMsg);
+        resolve(iframe);
+      }
+    }
+    window.addEventListener('message', onMsg);
+
+    iframe.src = `${gasUrl}?mode=bridge&t=${Date.now()}`;
+    document.body.appendChild(iframe);
+    bridgeIframe = iframe;
+  });
+
+  return bridgeReadyPromise;
+}
+
+async function callGasViaIframeBridge(action, payload = {}) {
+  const iframe = await ensureBridgeIframe();
+  if (!iframe || !iframe.contentWindow) {
+    bridgeReadyPromise = null;
+    throw new Error('Bridge iframe unavailable');
+  }
+
+  const settings = Storage.getSettings();
+  const rpcId = `rpc_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+  const fullPayload = {
+    action,
+    passcode: 'WC-Family-2026',
+    passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
+    ...payload
+  };
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingRpcMap.delete(rpcId);
+      reject(new Error('雲端橋接逾時'));
+    }, 20000);
+
+    pendingRpcMap.set(rpcId, { resolve, reject, timer });
+    iframe.contentWindow.postMessage(
+      { __fasRpcId: rpcId, payload: fullPayload },
+      '*'
+    );
+  });
+}
+
+/**
+ * 通道 3：無 Cookie 匿名 JSONP (<script crossorigin="anonymous">)
+ */
+function callGasJsonpCookieless(action, payload = {}) {
   return new Promise((resolve, reject) => {
     const callbackName = `__fas_cb_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     const script = document.createElement('script');
+    script.crossOrigin = 'anonymous';
+    script.referrerPolicy = 'no-referrer';
+
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error('雲端連線逾時，請確認網路狀態'));
-    }, 20000);
+      reject(new Error('JSONP 連線逾時'));
+    }, 15000);
 
     function cleanup() {
       clearTimeout(timer);
@@ -33,7 +163,7 @@ function callGasJsonp(action, payload = {}) {
 
     script.onerror = function () {
       cleanup();
-      reject(new Error('雲端腳本載入失敗，請點擊重試'));
+      reject(new Error('JSONP script error'));
     };
 
     const settings = Storage.getSettings();
@@ -41,7 +171,10 @@ function callGasJsonp(action, payload = {}) {
     const url = new URL(gasUrl);
     url.searchParams.set('action', action);
     url.searchParams.set('passcode', 'WC-Family-2026');
-    url.searchParams.set('passkeyCredentialId', settings.faceIdCredentialId || 'WC-Authorized-Session');
+    url.searchParams.set(
+      'passkeyCredentialId',
+      settings.faceIdCredentialId || 'WC-Authorized-Session'
+    );
     url.searchParams.set('callback', callbackName);
     url.searchParams.set('t', Date.now().toString());
 
@@ -64,13 +197,24 @@ export const Api = {
     return Boolean(url && url.startsWith('https://script.google.com/'));
   },
 
+  /**
+   * 三通道自動容錯呼叫：
+   * 1. 無 Cookie 匿名 Fetch (credentials: 'omit')
+   * 2. 無 Cookie 匿名 JSONP (crossorigin="anonymous")
+   * 3. Google 官方 HtmlService Iframe RPC 橋接 (google.script.run)
+   */
   async callGas(action, payload = {}) {
-    return await callGasJsonp(action, payload);
+    try {
+      return await callGasFetchCookieless(action, payload);
+    } catch {
+      try {
+        return await callGasJsonpCookieless(action, payload);
+      } catch {
+        return await callGasViaIframeBridge(action, payload);
+      }
+    }
   },
 
-  /**
-   * 全自動雙向差異同步引擎 (Smart Two-Way Diff Sync)
-   */
   async syncWithCloud() {
     if (!this.isConfigured()) {
       return { synced: false, reason: 'not_configured' };
@@ -81,7 +225,6 @@ export const Api = {
 
     isSyncingNow = true;
     try {
-      // Step 1: 同步本機待刪除的帳目到雲端
       const deletedIds = Storage.getDeletedIds();
       if (deletedIds.length > 0) {
         const cleared = [];
@@ -89,23 +232,19 @@ export const Api = {
           try {
             await this.callGas('deleteTransaction', { id: delId });
             cleared.push(delId);
-          } catch {
-            // 保留待下次重試
-          }
+          } catch {}
         }
         if (cleared.length > 0) {
           Storage.clearDeletedIds(cleared);
         }
       }
 
-      // Step 2: 拉取 Google Sheet 目前的完整資料（不夾帶龐大設定參數，保持極短 URL 確保 100% 秒開）
       const res = await this.callGas('syncAll');
 
       const cloudTxs = Array.isArray(res.transactions) ? res.transactions : [];
       const localTxs = Storage.getTransactions();
       const stillDeletedSet = new Set(Storage.getDeletedIds());
 
-      // Step 3: 雙向差異合併 (Two-Way Merge by ID)
       const cloudMap = new Map();
       cloudTxs.forEach((tx) => {
         if (tx && tx.id && !stillDeletedSet.has(tx.id)) {
@@ -133,14 +272,11 @@ export const Api = {
         }
       });
 
-      // Step 4: 若本機有尚未同步到 Google Sheet 的帳目，逐筆透過輕量 JSONP 寫入雲端
       if (localOnlyToUpload.length > 0) {
         for (const tx of localOnlyToUpload) {
           try {
             await this.callGas('upsertTransaction', { transaction: tx });
-          } catch {
-            // 單筆失敗保留至下輪同步
-          }
+          } catch {}
         }
       }
 
