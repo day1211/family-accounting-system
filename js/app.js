@@ -1,13 +1,14 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js';
-import { Storage } from './storage.js';
-import { Auth } from './auth.js';
-import { Api } from './api.js';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=4';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=4';
+import { Storage } from './storage.js?v=4';
+import { Auth } from './auth.js?v=4';
+import { Api } from './api.js?v=4';
 
 const State = {
   activeTab: 'dashboard',
   currentYearMonth: getTodayYearMonth(),
   expandedCategory: null,
+  syncStatus: 'idle', // 'idle' | 'syncing' | 'synced' | 'pending_auth'
   txForm: {
     id: '',
     type: 'expense',
@@ -51,9 +52,6 @@ function showToast(msg, duration = 3000) {
   }, duration);
 }
 
-/**
- * 檢查網址是否帶有跨手機換機 / 家人配對參數 (?setup=FAS1:...)
- */
 async function checkUrlMigrationOnBoot() {
   const params = new URLSearchParams(window.location.search);
   const setupCode = params.get('setup');
@@ -63,20 +61,15 @@ async function checkUrlMigrationOnBoot() {
     Storage.applyMigrationCode(setupCode);
     const cleanUrl = window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
-    showToast('已成功匯入家庭帳本連線設定，正在同步雲端...', 4000);
-    if (Api.isConfigured()) {
-      await triggerCloudSync(true);
-    }
+    showToast('已成功匯入家庭帳本連線設定，正在自動同步雲端...', 4000);
   } catch (err) {
     showToast(`配對連結解析失敗：${err.message}`, 4000);
   }
 }
 
-/**
- * 初始化 Face ID 鎖定檢查
- */
 async function initFaceIdGuard() {
   const lockScreen = document.getElementById('lock-screen');
+  if (!lockScreen) return;
   if (Auth.isSessionUnlocked()) {
     lockScreen.classList.add('hidden');
     lockScreen.classList.remove('flex');
@@ -93,17 +86,19 @@ async function initFaceIdGuard() {
 
 async function handleFaceIdUnlock() {
   const errEl = document.getElementById('lock-error-msg');
-  errEl.textContent = '正在喚起 Face ID 驗證...';
+  if (errEl) errEl.textContent = '正在喚起 Face ID 驗證...';
   try {
     const ok = await Auth.verifyFaceId();
     if (ok) {
-      errEl.textContent = '';
+      if (errEl) errEl.textContent = '';
       document.getElementById('lock-screen').classList.add('hidden');
       document.getElementById('lock-screen').classList.remove('flex');
       showToast('Face ID 解鎖成功');
     }
   } catch {
-    errEl.textContent = 'Face ID 未完成驗證，可再次點擊圖示或使用下方家庭通行碼解鎖';
+    if (errEl) {
+      errEl.textContent = 'Face ID 未完成驗證，可再次點擊圖示或使用下方家庭通行碼解鎖';
+    }
   }
 }
 
@@ -153,35 +148,43 @@ function renderAll() {
 function renderHeaderAndSyncBadge() {
   const settings = Storage.getSettings();
   const members = Storage.getMembers();
-  document.getElementById('current-month-label').textContent = formatYearMonthLabel(State.currentYearMonth);
+  const monthLabel = document.getElementById('current-month-label');
+  if (monthLabel) monthLabel.textContent = formatYearMonthLabel(State.currentYearMonth);
 
   const memberNames = members.map((m) => m.name).join(' & ');
-  document.getElementById('header-subtitle').textContent = `${memberNames} 家庭收支帳本`;
+  const subEl = document.getElementById('header-subtitle');
+  if (subEl) subEl.textContent = `${memberNames} 家庭收支帳本`;
 
   const badge = document.getElementById('sync-status-badge');
   const dot = document.getElementById('sync-status-dot');
   const text = document.getElementById('sync-status-text');
-  const queue = Storage.getPendingQueue();
+  const heroSyncTime = document.getElementById('hero-sync-time');
+  if (!badge || !dot || !text) return;
 
-  if (Api.isConfigured()) {
-    if (queue.length > 0) {
-      badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700 cursor-pointer';
-      dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-500';
-      text.textContent = `待同步 (${queue.length})`;
-    } else {
-      badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200/60 cursor-pointer';
-      dot.className = 'h-1.5 w-1.5 rounded-full bg-indigo-600';
-      text.textContent = '雲端已同步';
-    }
+  if (State.syncStatus === 'syncing') {
+    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60';
+    dot.className = 'h-1.5 w-1.5 rounded-full bg-indigo-500 animate-ping';
+    text.textContent = '雲端同步中...';
+    if (heroSyncTime) heroSyncTime.textContent = '正在與 Google Sheet 同步...';
+  } else if (State.syncStatus === 'synced') {
+    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200/60';
+    dot.className = 'h-1.5 w-1.5 rounded-full bg-indigo-600';
+    text.textContent = '雲端自動同步';
+    if (heroSyncTime) heroSyncTime.textContent = '已與 Google Sheet 即時同步';
+  } else if (State.syncStatus === 'pending_auth') {
+    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700';
+    dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-500';
+    text.textContent = '待試算表授權';
+    if (heroSyncTime) heroSyncTime.textContent = '本機自動儲存（待試算表初次授權後自動同步）';
   } else {
-    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 text-slate-600 cursor-pointer';
+    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 text-slate-600';
     dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-400';
-    text.textContent = settings.isDemoData ? '展示模式' : '本機模式';
+    text.textContent = settings.isDemoData ? '自動同步就緒' : '本機模式';
   }
 }
 
 /**
- * 渲染 Tab 1: Percento 風格總覽 Dashboard (單色圖示 + 同色系深淺漸層)
+ * 渲染 Tab 1: Percento 風格總覽 Dashboard
  */
 function renderDashboard() {
   const allTx = Storage.getTransactions();
@@ -229,7 +232,6 @@ function renderDashboard() {
   document.getElementById('hero-budget-percent').textContent = `${budgetPct}%`;
   document.getElementById('hero-budget-bar').style.width = `${budgetPct}%`;
 
-  // 整理分類佔比並套用同色系深淺漸層 (HARMONIOUS_TONAL_SCALE)
   const breakdownItems = Object.keys(catExpenseMap)
     .map((catName) => {
       const found = categories.find((c) => c.name === catName) || {
@@ -355,9 +357,8 @@ function renderDashboard() {
     });
   }
 
-  // 渲染近期收支明細 (單色圖示、無付款人雜訊)
   const recentEl = document.getElementById('recent-transactions-list');
-  const recentSlice = monthTx.slice(0, 6);
+  const recentSlice = monthTx.slice(0, 8);
   if (recentSlice.length === 0) {
     recentEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">本月尚無帳目紀錄</div>`;
   } else {
@@ -405,12 +406,10 @@ function bindTransactionRowClicks(container) {
   });
 }
 
-/**
- * 渲染 Tab 2: 秒速歷史搜尋與篩選
- */
 function populateSearchFilterDropdowns() {
   const categories = Storage.getCategories();
   const catSelect = document.getElementById('filter-category');
+  if (!catSelect) return;
   const currentCat = catSelect.value || 'all';
   catSelect.innerHTML =
     `<option value="all">全部主分類</option>` +
@@ -473,15 +472,11 @@ function renderSearchView() {
   }
 }
 
-/**
- * 渲染 Tab 3: 自訂分類、子分類、固定收支模板與成員稱呼
- */
 function renderManageView() {
   const templates = Storage.getTemplates();
   const categories = Storage.getCategories();
   const members = Storage.getMembers();
 
-  // 1. 常用模板列表
   const tplListEl = document.getElementById('templates-list');
   if (templates.length === 0) {
     tplListEl.innerHTML = `<div class="text-xs text-slate-400 py-3 text-center">尚無常用模板</div>`;
@@ -533,7 +528,6 @@ function renderManageView() {
     });
   }
 
-  // 2. 自訂收支分類與子分類管理 (單色圖示)
   const catListEl = document.getElementById('manage-categories-list');
   catListEl.innerHTML = categories
     .map(
@@ -624,7 +618,6 @@ function renderManageView() {
     });
   });
 
-  // 3. 成員稱呼設定 (Willie & Christine，可自訂改名)
   const memListEl = document.getElementById('manage-members-list');
   memListEl.innerHTML = members
     .map(
@@ -659,9 +652,6 @@ function renderManageView() {
   });
 }
 
-/**
- * 渲染 Tab 4: 設定、Face ID 與跨手機無痛移轉
- */
 function renderSettingsView() {
   const settings = Storage.getSettings();
   const members = Storage.getMembers();
@@ -692,9 +682,6 @@ function renderSettingsView() {
   document.getElementById('setting-monthly-budget').value = settings.monthlyBudget || 80000;
 }
 
-/**
- * 開啟「新增 / 編輯收支」Bottom Sheet Modal
- */
 function openTransactionModal(editTxId = '', templateId = '') {
   const categories = Storage.getCategories();
   const templates = Storage.getTemplates();
@@ -761,7 +748,6 @@ function renderTxModalFields() {
   const categories = Storage.getCategories();
   const templates = Storage.getTemplates();
 
-  // 1. 常用模板橫向按鈕
   const quickTplEl = document.getElementById('modal-quick-templates');
   quickTplEl.innerHTML = templates
     .map(
@@ -787,7 +773,6 @@ function renderTxModalFields() {
     });
   });
 
-  // 2. 類型切換按鈕
   document.querySelectorAll('.tx-type-btn').forEach((btn) => {
     const isSelected = btn.getAttribute('data-tx-type') === State.txForm.type;
     btn.className = isSelected
@@ -795,13 +780,11 @@ function renderTxModalFields() {
       : 'tx-type-btn rounded-xl py-2 text-xs font-extrabold text-slate-500 transition';
   });
 
-  // 3. 金額、日期、備註
   document.getElementById('tx-id').value = State.txForm.id;
   document.getElementById('tx-amount').value = State.txForm.amount;
   document.getElementById('tx-date').value = State.txForm.date;
   document.getElementById('tx-note').value = State.txForm.note;
 
-  // 4. 主分類網格 (單色圖示)
   const filteredCats = categories.filter((c) => c.type === State.txForm.type);
   if (!filteredCats.some((c) => c.name === State.txForm.category) && filteredCats.length > 0) {
     State.txForm.category = filteredCats[0].name;
@@ -838,7 +821,6 @@ function renderTxModalFields() {
     });
   });
 
-  // 5. 子分類膠囊
   const currentCatObj = filteredCats.find((c) => c.name === State.txForm.category);
   const subList = currentCatObj ? currentCatObj.subcategories || [] : [];
   const subPills = document.getElementById('tx-subcategory-pills');
@@ -898,31 +880,50 @@ function closeTransactionModal() {
   modal.classList.remove('flex');
 }
 
-async function triggerCloudSync(silent = false) {
-  if (!Api.isConfigured()) {
-    if (!silent) {
-      showToast('請先在「設定/換機」分頁填入 Google Apps Script 網址與家庭通行碼');
-      switchTab('settings');
-    }
-    return;
-  }
+/**
+ * 全自動雙向同步程序（無需手動點擊，背景自動對齊裝置與 Google Sheet）
+ */
+async function performAutoSync(silent = true) {
+  if (!Api.isConfigured()) return;
 
-  const syncIcon = document.getElementById('sync-icon');
-  if (syncIcon) syncIcon.classList.add('animate-spin');
+  State.syncStatus = 'syncing';
+  renderHeaderAndSyncBadge();
 
   try {
     await Api.syncWithCloud();
+    State.syncStatus = 'synced';
     renderAll();
     if (!silent) {
-      showToast('已與 Google Sheet 家庭總帳本完成同步');
+      showToast('已與 Google Sheet 完成自動同步');
     }
   } catch (err) {
+    State.syncStatus = 'pending_auth';
+    renderHeaderAndSyncBadge();
     if (!silent) {
-      showToast(`同步失敗：${err.message}`);
+      showToast(`${err.message}`);
     }
-  } finally {
-    if (syncIcon) syncIcon.classList.remove('animate-spin');
   }
+}
+
+function startAutoSyncDaemon() {
+  // 1. 啟動時立即自動同步一次
+  performAutoSync(true);
+
+  // 2. 每 20 秒在背景自動檢查並雙向同步一次
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      performAutoSync(true);
+    }
+  }, 20000);
+
+  // 3. 當手機從背景切回畫面、獲得焦點或網路恢復時，立即自動同步
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      performAutoSync(true);
+    }
+  });
+  window.addEventListener('focus', () => performAutoSync(true));
+  window.addEventListener('online', () => performAutoSync(true));
 }
 
 async function handleApplyMonthlyFixedTemplates() {
@@ -954,8 +955,9 @@ async function handleApplyMonthlyFixedTemplates() {
 
   Storage.saveTransactions([...createdList, ...allTx]);
   renderAll();
+  showToast(`已寫入 ${createdList.length} 筆本月固定收支`);
   await Api.batchInsertTransactions(createdList);
-  showToast(`已一鍵寫入 ${createdList.length} 筆本月固定收支`);
+  performAutoSync(true);
 }
 
 function bindEvents() {
@@ -988,8 +990,7 @@ function bindEvents() {
   document.getElementById('btn-prev-month').addEventListener('click', () => shiftYearMonth(-1));
   document.getElementById('btn-next-month').addEventListener('click', () => shiftYearMonth(1));
 
-  document.getElementById('btn-sync-now').addEventListener('click', () => triggerCloudSync(false));
-  document.getElementById('sync-status-badge').addEventListener('click', () => triggerCloudSync(false));
+  document.getElementById('sync-status-badge').addEventListener('click', () => performAutoSync(false));
 
   document.getElementById('btn-nav-add').addEventListener('click', () => openTransactionModal());
   document.getElementById('btn-quick-open-add').addEventListener('click', () => openTransactionModal());
@@ -1048,15 +1049,10 @@ function bindEvents() {
 
     closeTransactionModal();
     renderAll();
+    showToast('已儲存收支並自動同步雲端');
 
-    const syncRes = await Api.upsertTransaction(txObj);
-    if (syncRes && syncRes.queued) {
-      showToast('已儲存於本機（待網路恢復自動同步至 Google Sheet）');
-    } else if (Api.isConfigured()) {
-      showToast('已儲存並同步至 Google Sheet 總帳本');
-    } else {
-      showToast('已儲存收支紀錄');
-    }
+    await Api.upsertTransaction(txObj);
+    performAutoSync(true);
   });
 
   document.getElementById('btn-delete-tx').addEventListener('click', async () => {
@@ -1068,8 +1064,10 @@ function bindEvents() {
     Storage.saveTransactions(next);
     closeTransactionModal();
     renderAll();
+    showToast('已刪除帳目並自動同步雲端');
+
     await Api.deleteTransaction(id);
-    showToast('已刪除該筆帳目');
+    performAutoSync(true);
   });
 
   ['search-keyword', 'filter-scope', 'filter-type', 'filter-category'].forEach((id) => {
@@ -1088,7 +1086,6 @@ function bindEvents() {
     renderSearchView();
   });
 
-  // 新增自訂主分類 Modal
   document.getElementById('btn-add-category').addEventListener('click', () => {
     renderCategoryModalPickers();
     const modal = document.getElementById('modal-category');
@@ -1134,7 +1131,6 @@ function bindEvents() {
     showToast(`已新增自訂主分類「${name}」`);
   });
 
-  // 新增模板 Modal
   document.getElementById('btn-add-template').addEventListener('click', () => {
     const cats = Storage.getCategories();
     document.getElementById('tpl-category').innerHTML = cats
@@ -1184,7 +1180,6 @@ function bindEvents() {
     showToast(`已新增常用模板「${name}」`);
   });
 
-  // Face ID 綁定與測試
   document.getElementById('btn-setup-faceid').addEventListener('click', async () => {
     try {
       const settings = Storage.getSettings();
@@ -1214,7 +1209,6 @@ function bindEvents() {
     showToast('已關閉 Face ID 鎖定');
   });
 
-  // 跨手機換機 QR Code 與移轉碼
   document.getElementById('btn-show-migration-qr').addEventListener('click', () => {
     const targetMember = document.getElementById('migration-target-member').value;
     const migUrl = Storage.generateMigrationUrl(targetMember);
@@ -1254,15 +1248,12 @@ function bindEvents() {
       document.getElementById('input-import-migration').value = '';
       renderAll();
       showToast('換機設定匯入成功');
-      if (Api.isConfigured()) {
-        await triggerCloudSync(false);
-      }
+      performAutoSync(false);
     } catch (err) {
       showToast(`${err.message}`);
     }
   });
 
-  // 儲存 Google Sheet 設定
   document.getElementById('btn-save-settings').addEventListener('click', async () => {
     const gasUrl = document.getElementById('setting-gas-url').value.trim();
     const passcode = document.getElementById('setting-passcode').value.trim();
@@ -1275,11 +1266,8 @@ function bindEvents() {
     });
 
     renderAll();
-    if (gasUrl) {
-      await triggerCloudSync(false);
-    } else {
-      showToast('設定已儲存於本機');
-    }
+    showToast('設定已儲存並開啟自動同步');
+    performAutoSync(false);
   });
 
   document.getElementById('btn-export-csv').addEventListener('click', () => {
@@ -1349,7 +1337,7 @@ function downloadFile(filename, content, mimeType) {
 async function bootstrap() {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./sw.js');
+      await navigator.serviceWorker.register('./sw.js?v=4');
     } catch {
       // ignore SW error
     }
@@ -1359,10 +1347,7 @@ async function bootstrap() {
   await checkUrlMigrationOnBoot();
   renderAll();
   await initFaceIdGuard();
-
-  if (Api.isConfigured()) {
-    triggerCloudSync(true);
-  }
+  startAutoSyncDaemon();
 }
 
 document.addEventListener('DOMContentLoaded', bootstrap);

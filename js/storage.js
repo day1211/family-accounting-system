@@ -3,15 +3,15 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js';
+} from './defaultData.js?v=4';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v3',
-  CATEGORIES: 'wc_fas_categories_v3',
-  MEMBERS: 'wc_fas_members_v3',
-  TEMPLATES: 'wc_fas_templates_v3',
-  SETTINGS: 'wc_fas_settings_v3',
-  PENDING_QUEUE: 'wc_fas_pending_queue_v3'
+  TRANSACTIONS: 'wc_fas_transactions_v4',
+  CATEGORIES: 'wc_fas_categories_v4',
+  MEMBERS: 'wc_fas_members_v4',
+  TEMPLATES: 'wc_fas_templates_v4',
+  SETTINGS: 'wc_fas_settings_v4',
+  DELETED_IDS: 'wc_fas_deleted_ids_v4'
 };
 
 const DEFAULT_SETTINGS = {
@@ -53,7 +53,6 @@ export const Storage = {
       localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(DEFAULT_MEMBERS));
       return [...DEFAULT_MEMBERS];
     }
-    // 確保移除舊版可能殘留的「共同」
     const filtered = saved.filter((m) => m.name !== '共同');
     if (filtered.length !== saved.length) {
       localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(filtered));
@@ -110,18 +109,28 @@ export const Storage = {
     return transactions;
   },
 
-  getPendingQueue() {
-    return safeParse(localStorage.getItem(STORAGE_KEYS.PENDING_QUEUE), []);
+  getDeletedIds() {
+    return safeParse(localStorage.getItem(STORAGE_KEYS.DELETED_IDS), []);
   },
 
-  savePendingQueue(queue) {
-    localStorage.setItem(STORAGE_KEYS.PENDING_QUEUE, JSON.stringify(queue));
+  addDeletedId(id) {
+    const list = this.getDeletedIds();
+    if (!list.includes(id)) {
+      list.push(id);
+      localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(list));
+    }
+  },
+
+  clearDeletedIds(idsToClear) {
+    const set = new Set(idsToClear);
+    const next = this.getDeletedIds().filter((id) => !set.has(id));
+    localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(next));
   },
 
   generateMigrationCode(targetMember = '') {
     const settings = this.getSettings();
     const payload = {
-      v: 2,
+      v: 4,
       u: settings.gasUrl || '',
       p: settings.passcode || '',
       m: targetMember || settings.defaultMember || 'Willie',
@@ -182,7 +191,7 @@ export const Storage = {
 
   exportFullBackupJson() {
     const data = {
-      version: 2,
+      version: 4,
       exportedAt: new Date().toISOString(),
       settings: this.getSettings(),
       members: this.getMembers(),
@@ -191,18 +200,5 @@ export const Storage = {
       transactions: this.getTransactions()
     };
     return JSON.stringify(data, null, 2);
-  },
-
-  importFullBackupJson(jsonString) {
-    const data = JSON.parse(jsonString);
-    if (!data || typeof data !== 'object') {
-      throw new Error('備份檔案格式無效');
-    }
-    if (data.settings) this.saveSettings(data.settings);
-    if (Array.isArray(data.members)) this.saveMembers(data.members);
-    if (Array.isArray(data.categories)) this.saveCategories(data.categories);
-    if (Array.isArray(data.templates)) this.saveTemplates(data.templates);
-    if (Array.isArray(data.transactions)) this.saveTransactions(data.transactions);
-    return true;
   }
 };

@@ -1,35 +1,13 @@
-const CACHE_NAME = 'wc-family-accounting-v2';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  './assets/icon.svg',
-  './css/styles.css',
-  './js/icons.js',
-  './js/defaultData.js',
-  './js/storage.js',
-  './js/auth.js',
-  './js/api.js',
-  './js/app.js'
-];
+const CACHE_NAME = 'wc-family-accounting-v4';
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
-  );
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      )
+      Promise.all(keys.map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
@@ -41,8 +19,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 永遠優先從網路取得最新檔案 (Network-First)，僅在斷網時使用快取
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-store' })
       .then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
           const responseClone = networkResponse.clone();

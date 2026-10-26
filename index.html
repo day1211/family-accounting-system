@@ -16,10 +16,30 @@
   <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
   <link rel="apple-touch-icon" href="./assets/icon.svg" />
 
+  <!-- 自動清除舊版 Service Worker 快取，確保永遠載入最新程式碼 -->
+  <script>
+    (async function () {
+      try {
+        if (localStorage.getItem('wc_sw_version') !== 'v4') {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (const r of regs) await r.unregister();
+          }
+          if ('caches' in window) {
+            const keys = await caches.keys();
+            for (const k of keys) await caches.delete(k);
+          }
+          localStorage.setItem('wc_sw_version', 'v4');
+          window.location.reload();
+        }
+      } catch (e) {}
+    })();
+  </script>
+
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/styles.css?v=4" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -81,9 +101,9 @@
           <div>
             <div class="flex items-center gap-1.5">
               <h1 class="text-sm font-extrabold tracking-tight text-slate-900">W&amp;C 家庭帳本</h1>
-              <span id="sync-status-badge" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 text-slate-700 cursor-pointer" title="點擊同步或設定雲端">
+              <span id="sync-status-badge" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 text-slate-700 cursor-pointer" title="雲端自動雙向同步狀態">
                 <span id="sync-status-dot" class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>
-                <span id="sync-status-text">本機模式</span>
+                <span id="sync-status-text">自動同步中</span>
               </span>
             </div>
             <p class="text-[11px] text-slate-500" id="header-subtitle">Willie &amp; Christine</p>
@@ -121,10 +141,7 @@
         <div class="percento-hero-gradient rounded-[24px] p-5 text-white relative overflow-hidden">
           <div class="flex items-center justify-between text-xs text-indigo-200/90 font-medium">
             <span id="hero-month-title">2026年10月 家庭總支出</span>
-            <button id="btn-sync-now" type="button" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white transition active:scale-95">
-              <svg id="sync-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-              <span>同步雲端</span>
-            </button>
+            <span id="hero-sync-time" class="text-[11px] text-indigo-200/75">即時自動同步</span>
           </div>
 
           <div class="mt-2.5 flex items-baseline justify-between">
@@ -295,7 +312,7 @@
           <div class="flex items-center justify-between mb-2">
             <div>
               <h2 class="text-sm font-extrabold text-slate-900">自訂收支分類與子分類</h2>
-              <p class="text-[11px] text-slate-400">自由新增主分類與子分類，同步至 Google Sheet</p>
+              <p class="text-[11px] text-slate-400">自由新增主分類與子分類，自動同步至 Google Sheet</p>
             </div>
             <button id="btn-add-category" type="button" class="rounded-xl bg-slate-100 text-slate-800 px-3 py-1.5 text-xs font-bold hover:bg-slate-200">
               ＋ 新增主分類
@@ -414,7 +431,7 @@
             </div>
             <div>
               <h2 class="text-sm font-extrabold text-slate-900">Google Sheet 總帳本雲端連線</h2>
-              <p class="text-[11px] text-slate-400">自動寫入收支明細與更新月度家庭總帳本</p>
+              <p class="text-[11px] text-slate-400">任何裝置寫入即自動同步，兩端差異自動對齊</p>
             </div>
           </div>
 
@@ -437,7 +454,7 @@
 
             <div class="pt-1">
               <button id="btn-save-settings" type="button" class="w-full rounded-xl bg-indigo-950 text-white px-4 py-2.5 text-xs font-bold shadow-sm hover:bg-indigo-900 active:scale-95 transition">
-                儲存設定並立即同步雲端
+                儲存設定
               </button>
             </div>
           </div>
@@ -685,6 +702,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./js/app.js?v=4"></script>
 </body>
 </html>
