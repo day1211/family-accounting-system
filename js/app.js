@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=10';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=10';
-import { Storage } from './storage.js?v=10';
-import { Auth } from './auth.js?v=10';
-import { Api } from './api.js?v=10';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=11';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=11';
+import { Storage } from './storage.js?v=11';
+import { Auth } from './auth.js?v=11';
+import { Api } from './api.js?v=11';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -107,22 +107,10 @@ async function initFaceIdGuard() {
 
   showLockedScreenUI();
 
-  const settings = Storage.getSettings();
   const hintEl = document.getElementById('lock-faceid-hint');
   const errEl = document.getElementById('lock-error-msg');
-  if (hintEl) hintEl.textContent = '點擊使用 Face ID (iOS 通行密鑰) 解鎖';
+  if (hintEl) hintEl.textContent = '輕觸上方圖示使用 Face ID 解鎖';
   if (errEl) errEl.textContent = '';
-
-  const isStandalonePwa =
-    window.navigator.standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches;
-
-  // 若已啟用 Face ID 或從 iPhone 桌面主畫面開啟，自動喚起 iOS 通行密鑰 Face ID
-  if (settings.faceIdEnabled || isStandalonePwa) {
-    setTimeout(() => {
-      handleFaceIdUnlock();
-    }, 300);
-  }
 }
 
 async function handleFaceIdUnlock() {

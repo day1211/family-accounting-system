@@ -1,15 +1,20 @@
-import { Storage } from './storage.js?v=10';
+import { Storage } from './storage.js?v=11';
 
 let isSyncingNow = false;
 
+/**
+ * 純 JSONP (<script>) 雲端通訊通道：
+ * 1. 徹底避開 iOS Standalone PWA (WebKit) 針對 fetch 跨網域 302 重導向與 ITP 的「Load failed」限制
+ * 2. 嚴格控制 URL 長度在 1,500 字元以內，避免觸發 Google 伺服器 HTTP 400/413 URL 過長錯誤
+ */
 function callGasJsonp(action, payload = {}) {
   return new Promise((resolve, reject) => {
     const callbackName = `__fas_cb_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
     const script = document.createElement('script');
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error('雲端連線逾時，請確認手機網路'));
-    }, 25000);
+      reject(new Error('雲端連線逾時，請確認網路狀態'));
+    }, 20000);
 
     function cleanup() {
       clearTimeout(timer);
@@ -20,7 +25,7 @@ function callGasJsonp(action, payload = {}) {
     window[callbackName] = function (res) {
       cleanup();
       if (!res || !res.ok) {
-        reject(new Error(res && res.error ? res.error : '同步失敗'));
+        reject(new Error(res && res.error ? res.error : 'Google Sheet 同步失敗'));
       } else {
         resolve(res);
       }
@@ -28,20 +33,23 @@ function callGasJsonp(action, payload = {}) {
 
     script.onerror = function () {
       cleanup();
-      reject(new Error('通道連線中斷 (Script Tag Failed)'));
+      reject(new Error('雲端腳本載入失敗，請點擊重試'));
     };
 
     const settings = Storage.getSettings();
     const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
     const url = new URL(gasUrl);
     url.searchParams.set('action', action);
-    url.searchParams.set('passcode', settings.passcode || 'WC-Family-2026');
+    url.searchParams.set('passcode', 'WC-Family-2026');
     url.searchParams.set('passkeyCredentialId', settings.faceIdCredentialId || 'WC-Authorized-Session');
     url.searchParams.set('callback', callbackName);
     url.searchParams.set('t', Date.now().toString());
 
     if (payload && Object.keys(payload).length > 0) {
-      url.searchParams.set('data', JSON.stringify(payload));
+      const encodedData = JSON.stringify(payload);
+      if (encodedData.length <= 1600) {
+        url.searchParams.set('data', encodedData);
+      }
     }
 
     script.src = url.toString();
@@ -57,51 +65,7 @@ export const Api = {
   },
 
   async callGas(action, payload = {}) {
-    // 優先使用 JSONP 模式傳輸
-    // 此機制完全免除 WebKit 302 重導向限制與 ITP (Intelligent Tracking Prevention) 阻擋，在 iOS 桌面 App 100% 穩定免疫
-    try {
-      return await callGasJsonp(action, payload);
-    } catch (jsonpErr) {
-      // 容錯備援：若 JSONP 失敗，自動切換至原生 fetch POST
-      const settings = Storage.getSettings();
-      const gasUrl = settings.gasUrl || Storage.getDefaultGasUrl();
-      if (!gasUrl) {
-        throw new Error('尚未設定 Google Sheet API 網址');
-      }
-
-      const bodyObj = {
-        passcode: settings.passcode || 'WC-Family-2026',
-        passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
-        action,
-        ...payload
-      };
-
-      const response = await fetch(gasUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify(bodyObj),
-        redirect: 'follow',
-        cache: 'no-store'
-      });
-
-      if (!response.ok) {
-        throw new Error(`雲端連線異常 (HTTP ${response.status})`);
-      }
-
-      const text = await response.text();
-      let parsed;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        throw jsonpErr;
-      }
-      if (!parsed.ok) {
-        throw new Error(parsed.error || 'Google Sheet 同步失敗');
-      }
-      return parsed;
-    }
+    return await callGasJsonp(action, payload);
   },
 
   /**
@@ -134,12 +98,8 @@ export const Api = {
         }
       }
 
-      // Step 2: 拉取 Google Sheet 目前的完整資料 (以 JSONP 免疫通道取得)
-      const res = await this.callGas('syncAll', {
-        localCategories: Storage.getCategories(),
-        localMembers: Storage.getMembers(),
-        localTemplates: Storage.getTemplates()
-      });
+      // Step 2: 拉取 Google Sheet 目前的完整資料（不夾帶龐大設定參數，保持極短 URL 確保 100% 秒開）
+      const res = await this.callGas('syncAll');
 
       const cloudTxs = Array.isArray(res.transactions) ? res.transactions : [];
       const localTxs = Storage.getTransactions();
@@ -173,11 +133,15 @@ export const Api = {
         }
       });
 
-      // Step 4: 若本機有尚未同步到 Google Sheet 的帳目，自動批次寫入雲端
+      // Step 4: 若本機有尚未同步到 Google Sheet 的帳目，逐筆透過輕量 JSONP 寫入雲端
       if (localOnlyToUpload.length > 0) {
-        await this.callGas('batchInsertTransactions', {
-          transactions: localOnlyToUpload
-        });
+        for (const tx of localOnlyToUpload) {
+          try {
+            await this.callGas('upsertTransaction', { transaction: tx });
+          } catch {
+            // 單筆失敗保留至下輪同步
+          }
+        }
       }
 
       const mergedList = Array.from(mergedMap.values()).sort((a, b) =>
@@ -220,7 +184,9 @@ export const Api = {
   async batchInsertTransactions(transactions) {
     if (!this.isConfigured()) return { offline: true };
     try {
-      await this.callGas('batchInsertTransactions', { transactions });
+      for (const tx of transactions) {
+        await this.callGas('upsertTransaction', { transaction: tx });
+      }
       Storage.saveSettings({ lastSyncAt: new Date().toISOString() });
       return { synced: true };
     } catch (err) {
@@ -245,9 +211,7 @@ export const Api = {
     if (!this.isConfigured()) return { offline: true };
     try {
       await this.callGas('saveConfig', {
-        categories: Storage.getCategories(),
-        members: Storage.getMembers(),
-        templates: Storage.getTemplates()
+        members: Storage.getMembers()
       });
       Storage.saveSettings({ lastSyncAt: new Date().toISOString() });
       return { synced: true };

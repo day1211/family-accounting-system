@@ -28,8 +28,8 @@
           const keys = await caches.keys();
           for (const k of keys) await caches.delete(k);
         }
-        if (localStorage.getItem('wc_sw_version') !== 'v10') {
-          localStorage.setItem('wc_sw_version', 'v10');
+        if (localStorage.getItem('wc_sw_version') !== 'v11') {
+          localStorage.setItem('wc_sw_version', 'v11');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=10" />
+  <link rel="stylesheet" href="./css/styles.css?v=11" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -70,7 +70,7 @@
       <form id="form-unlock-passcode" class="mt-6 w-full border-t border-slate-800/80 pt-5">
         <label class="block text-xs text-slate-400 mb-2 text-center">或輸入家庭通行碼 / iOS 儲存的密碼解鎖</label>
         <div class="flex gap-2">
-          <input id="input-unlock-passcode" type="password" autocomplete="current-password webauthn" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" />
+          <input id="input-unlock-passcode" type="password" autocomplete="off" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" />
           <button id="btn-unlock-passcode" type="submit" class="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 text-xs font-extrabold text-white transition">
             驗證解鎖
           </button>
@@ -754,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=10"></script>
+  <script type="module" src="./js/app.js?v=11"></script>
 </body>
 </html>

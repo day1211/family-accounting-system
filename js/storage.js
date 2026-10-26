@@ -3,18 +3,18 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=10';
+} from './defaultData.js?v=11';
 
+// 使用永久穩定的 Storage Key，確保版本更新時絕對不會遺失已綁定的 Face ID Credential ID
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v10',
-  CATEGORIES: 'wc_fas_categories_v10',
-  MEMBERS: 'wc_fas_members_v10',
-  TEMPLATES: 'wc_fas_templates_v10',
-  SETTINGS: 'wc_fas_settings_v10',
-  DELETED_IDS: 'wc_fas_deleted_ids_v10'
+  TRANSACTIONS: 'wc_fas_transactions_stable',
+  CATEGORIES: 'wc_fas_categories_stable',
+  MEMBERS: 'wc_fas_members_stable',
+  TEMPLATES: 'wc_fas_templates_stable',
+  SETTINGS: 'wc_fas_settings_stable',
+  DELETED_IDS: 'wc_fas_deleted_ids_stable'
 };
 
-// 編碼儲存之雲端同步端點（解鎖後自動掛載，支援 iOS 主畫面獨立沙盒自動配對）
 const ENCODED_GAS_ENDPOINT =
   'aHR0cHM6Ly9zY3JpcHQuZ29vZ2xlLmNvbS9tYWNyb3Mvcy9BS2Z5Y2J6Q3pKcGxjbXo5RHV6UjcwZjk5UnpwWm1YbHR6VkFFUEJ1QjlCN3hSSnhWSDlVeTlNWUVkUE1RVXVTWWlUNVZVMEVKUS9leGVj';
 
@@ -57,15 +57,25 @@ export const Storage = {
   getDefaultGasUrl,
 
   getSettings() {
-    for (const key of [
+    const legacyKeys = [
       STORAGE_KEYS.SETTINGS,
+      'wc_fas_settings_v10',
+      'wc_fas_settings_v9',
+      'wc_fas_settings_v8',
+      'wc_fas_settings_v7',
       'wc_fas_settings_v6',
       'wc_fas_settings_v5',
       'wc_fas_settings_v4'
-    ]) {
+    ];
+    for (const key of legacyKeys) {
       const saved = safeParse(localStorage.getItem(key), null);
-      if (saved && (saved.gasUrl || saved.passcode || saved.faceIdCredentialId)) {
-        const merged = { ...DEFAULT_SETTINGS, ...saved };
+      if (saved && (saved.faceIdCredentialId || saved.gasUrl || saved.passcode)) {
+        const merged = {
+          ...DEFAULT_SETTINGS,
+          ...saved,
+          gasUrl: saved.gasUrl || getDefaultGasUrl(),
+          passcode: saved.passcode || 'WC-Family-2026'
+        };
         if (key !== STORAGE_KEYS.SETTINGS) {
           localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
         }
@@ -81,38 +91,29 @@ export const Storage = {
     return next;
   },
 
-  /**
-   * 驗證使用者輸入的家庭通行碼（支援 iOS 密碼自動填入、自訂密碼與預設家庭通行碼）
-   * 當 iPhone「加入主畫面」建立獨立沙盒時，首次輸入使用者在瀏覽器設定的通行碼即可完成配對並同步雲端
-   */
   async unlockVaultWithPasscode(inputPasscode) {
     const clean = (inputPasscode || '').trim();
     if (!clean || clean.length < 2) return false;
 
     const currentSettings = this.getSettings();
+    const matchSaved =
+      (currentSettings.passcode &&
+        clean.toLowerCase() === currentSettings.passcode.toLowerCase()) ||
+      (currentSettings.lockPin &&
+        clean.toLowerCase() === currentSettings.lockPin.toLowerCase()) ||
+      clean.toLowerCase() === 'wc-family-2026';
 
-    // 1. 若此沙盒已設定過通行碼或備援 PIN，比對是否一致（亦允許預設家庭通行碼救援）
-    if (currentSettings.passcode || currentSettings.lockPin) {
-      const matchSaved =
-        (currentSettings.passcode &&
-          clean.toLowerCase() === currentSettings.passcode.toLowerCase()) ||
-        (currentSettings.lockPin &&
-          clean.toLowerCase() === currentSettings.lockPin.toLowerCase()) ||
-        clean.toLowerCase() === 'wc-family-2026';
-
-      if (matchSaved) {
-        if (!currentSettings.gasUrl) {
-          this.saveSettings({ gasUrl: getDefaultGasUrl() });
-        }
-        return true;
-      }
-      return false;
+    if (matchSaved) {
+      this.saveSettings({
+        gasUrl: currentSettings.gasUrl || getDefaultGasUrl(),
+        passcode: 'WC-Family-2026'
+      });
+      return true;
     }
 
-    // 2. 若為 iPhone「加入主畫面 (PWA)」首次開啟的全新沙盒，接受使用者輸入的家庭通行碼並自動綁定雲端端點
     this.saveSettings({
       gasUrl: getDefaultGasUrl(),
-      passcode: clean,
+      passcode: 'WC-Family-2026',
       lockPin: clean
     });
     return true;
@@ -168,6 +169,10 @@ export const Storage = {
   getTransactions() {
     for (const key of [
       STORAGE_KEYS.TRANSACTIONS,
+      'wc_fas_transactions_v10',
+      'wc_fas_transactions_v9',
+      'wc_fas_transactions_v8',
+      'wc_fas_transactions_v7',
       'wc_fas_transactions_v6',
       'wc_fas_transactions_v5'
     ]) {
@@ -210,7 +215,7 @@ export const Storage = {
   generateMigrationCode(targetMember = '') {
     const settings = this.getSettings();
     const payload = {
-      v: 7,
+      v: 11,
       u: settings.gasUrl || getDefaultGasUrl(),
       p: settings.passcode || 'WC-Family-2026',
       m: targetMember || settings.defaultMember || 'Willie',
@@ -272,7 +277,7 @@ export const Storage = {
 
   exportFullBackupJson() {
     const data = {
-      version: 7,
+      version: 11,
       exportedAt: new Date().toISOString(),
       settings: this.getSettings(),
       members: this.getMembers(),

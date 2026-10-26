@@ -1,4 +1,6 @@
-import { Storage } from './storage.js?v=10';
+import { Storage } from './storage.js?v=11';
+
+let isVerifyingNow = false;
 
 function bufferToBase64Url(buffer) {
   const bytes = new Uint8Array(buffer);
@@ -48,16 +50,13 @@ export const Auth = {
     }
   },
 
-  /**
-   * 在目前裝置註冊綁定 iPhone Face ID / Touch ID (iOS 通行密鑰 Passkey)
-   */
   async registerFaceId(memberName = 'Willie') {
     const supported = await this.isBiometricAvailable();
     if (!supported) {
       throw new Error('此裝置或瀏覽器目前不支援 Face ID（請在 HTTPS 環境使用 Safari / Chrome）');
     }
 
-    const userId = new TextEncoder().encode(`wc-family-${memberName}-${Date.now()}`);
+    const userId = new TextEncoder().encode(`wc-family-${memberName}`);
     const publicKey = {
       challenge: randomChallenge(32),
       rp: {
@@ -101,32 +100,34 @@ export const Auth = {
   },
 
   /**
-   * 喚起 iPhone Face ID / iOS 通行密鑰 (Passkey) 驗證解鎖
-   * 支援跨 Chrome 與「iPhone 加入主畫面 (PWA)」直接讀取已存在 iOS 通行密鑰中的金鑰並自動完成配對！
+   * 單次、絲滑喚起 iPhone Face ID：
+   * 1. 防重入鎖 (isVerifyingNow) 避免重複彈出兩個通行密鑰視窗
+   * 2. 一旦綁定過 credentialId，自動帶入 allowCredentials 直接刷臉、不再跳出帳號選單
    */
   async verifyFaceId() {
-    const settings = Storage.getSettings();
-    const publicKey = {
-      challenge: randomChallenge(32),
-      userVerification: 'required',
-      timeout: 60000
-    };
-
-    if (settings.faceIdCredentialId) {
-      try {
-        publicKey.allowCredentials = [
-          {
-            id: base64UrlToBuffer(settings.faceIdCredentialId),
-            type: 'public-key',
-            transports: ['internal', 'hybrid']
-          }
-        ];
-      } catch {
-        // 允許探索 iOS 系統級 Resident Passkey
-      }
-    }
+    if (isVerifyingNow) return false;
+    isVerifyingNow = true;
 
     try {
+      const settings = Storage.getSettings();
+      const publicKey = {
+        challenge: randomChallenge(32),
+        userVerification: 'required',
+        timeout: 60000
+      };
+
+      if (settings.faceIdCredentialId) {
+        try {
+          publicKey.allowCredentials = [
+            {
+              id: base64UrlToBuffer(settings.faceIdCredentialId),
+              type: 'public-key',
+              transports: ['internal', 'hybrid']
+            }
+          ];
+        } catch {}
+      }
+
       const assertion = await navigator.credentials.get({ publicKey });
       if (assertion) {
         const credId = bufferToBase64Url(assertion.rawId);
@@ -139,31 +140,12 @@ export const Auth = {
         sessionStorage.setItem('wc_fas_unlocked', 'true');
         return true;
       }
-    } catch (err) {
-      // 若指定 allowCredentials 失敗，改以無限制探索模式讀取 iOS 通行密鑰 (Passkey)
-      if (publicKey.allowCredentials) {
-        delete publicKey.allowCredentials;
-        const fallbackAssertion = await navigator.credentials.get({ publicKey });
-        if (fallbackAssertion) {
-          const newCredId = bufferToBase64Url(fallbackAssertion.rawId);
-          Storage.saveSettings({
-            gasUrl: settings.gasUrl || Storage.getDefaultGasUrl(),
-            passcode: settings.passcode || 'WC-Family-2026',
-            faceIdEnabled: true,
-            faceIdCredentialId: newCredId
-          });
-          sessionStorage.setItem('wc_fas_unlocked', 'true');
-          return true;
-        }
-      }
-      throw err;
+      return false;
+    } finally {
+      isVerifyingNow = false;
     }
-    return false;
   },
 
-  /**
-   * 使用家庭通行碼或 iOS 儲存的密碼解鎖
-   */
   async verifyFallbackPasscode(inputCode) {
     const ok = await Storage.unlockVaultWithPasscode(inputCode);
     if (ok) {
@@ -173,16 +155,10 @@ export const Auth = {
     return false;
   },
 
-  /**
-   * 嚴格門禁檢查：在公開網址或無痕模式下，永遠必須通過 Face ID (iOS 通行密鑰) 或家庭通行碼驗證才可進入
-   */
   isSessionUnlocked() {
     const settings = Storage.getSettings();
     if (isLocalHost && !settings.faceIdEnabled) {
       return true;
-    }
-    if (!settings.gasUrl) {
-      return false;
     }
     return sessionStorage.getItem('wc_fas_unlocked') === 'true';
   },
