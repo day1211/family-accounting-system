@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=8';
+import { Storage } from './storage.js?v=9';
 
 let isSyncingNow = false;
 
@@ -16,47 +16,100 @@ export const Api = {
       throw new Error('尚未設定 Google Sheet API 網址');
     }
 
-    const body = JSON.stringify({
-      passcode: settings.passcode || 'WC-Family-2026',
-      passkeyCredentialId: settings.faceIdCredentialId || 'WC-Authorized-Session',
+    const passcode = settings.passcode || 'WC-Family-2026';
+    const passkeyCredentialId = settings.faceIdCredentialId || 'WC-Authorized-Session';
+
+    // 1. 若為讀取操作 (syncAll / verifyAuth / ensureAnnualSheet)，優先採用標準 GET 請求
+    // 這能徹底避開 iOS Standalone PWA (WebKit) 遇到 302 跨網域重導向時拋出「Load failed」的底層 Bug
+    if (action === 'syncAll' || action === 'verifyAuth' || action === 'ensureAnnualSheet') {
+      const url = new URL(gasUrl);
+      url.searchParams.set('action', action);
+      url.searchParams.set('passcode', passcode);
+      url.searchParams.set('passkeyCredentialId', passkeyCredentialId);
+      url.searchParams.set('t', Date.now().toString());
+      if (payload.year) url.searchParams.set('year', payload.year);
+
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        cache: 'no-store'
+      });
+
+      if (!res.ok) {
+        throw new Error(`雲端連線異常 (HTTP ${res.status})`);
+      }
+
+      const text = await res.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
+        throw new Error(`雲端回應格式異常 (${preview || '空內容'})`);
+      }
+
+      if (!parsed.ok) {
+        throw new Error(parsed.error || 'Google Sheet 同步失敗');
+      }
+      return parsed;
+    }
+
+    // 2. 若為寫入操作 (新增/修改/刪除帳目)，優先以 POST 傳送；若遇 iOS WebKit Standalone 的 Load failed，自動降級以 GET 資料通道送達
+    const bodyObj = {
+      passcode,
+      passkeyCredentialId,
       action,
       ...payload
-    });
+    };
 
-    const response = await fetch(gasUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8'
-      },
-      body,
-      redirect: 'follow'
-    });
-
-    if (!response.ok) {
-      throw new Error(`雲端連線異常 (HTTP ${response.status})`);
-    }
-
-    const text = await response.text();
-    let result;
     try {
-      result = JSON.parse(text);
-    } catch {
-      const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
-      throw new Error(`雲端回應格式異常 (${preview || '空內容'})`);
-    }
+      const response = await fetch(gasUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(bodyObj),
+        redirect: 'follow',
+        cache: 'no-store'
+      });
 
-    if (!result.ok) {
-      throw new Error(result.error || 'Google Sheet 同步失敗');
+      if (response.ok) {
+        const text = await response.text();
+        let parsed;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          const preview = String(text || '').slice(0, 80).replace(/\s+/g, ' ');
+          throw new Error(`雲端回應格式異常 (${preview || '空內容'})`);
+        }
+        if (parsed.ok) return parsed;
+        throw new Error(parsed.error || 'Google Sheet 同步失敗');
+      }
+    } catch (postErr) {
+      // 容錯降級：以 GET 攜帶 JSON 資料送達 Google Apps Script
+      try {
+        const fallbackUrl = new URL(gasUrl);
+        fallbackUrl.searchParams.set('action', action);
+        fallbackUrl.searchParams.set('passcode', passcode);
+        fallbackUrl.searchParams.set('data', JSON.stringify(payload));
+        fallbackUrl.searchParams.set('t', Date.now().toString());
+
+        const resFallback = await fetch(fallbackUrl.toString(), {
+          method: 'GET',
+          cache: 'no-store'
+        });
+
+        if (resFallback.ok) {
+          const text = await resFallback.text();
+          const parsed = JSON.parse(text);
+          if (parsed && parsed.ok) return parsed;
+        }
+      } catch {}
+      throw postErr;
     }
-    return result;
   },
 
   /**
    * 全自動雙向差異同步引擎 (Smart Two-Way Diff Sync)
-   * 1. 將本機已刪除的 ID 同步從 Google Sheet 移除
-   * 2. 拉取 Google Sheet 上的所有帳目與本機帳目進行雙向比對：
-   *    - 本機有、但雲端沒有的帳目 -> 自動補上傳到 Google Sheet
-   *    - 雲端有、但本機沒有的帳目 -> 自動下載合併到本機
    */
   async syncWithCloud() {
     if (!this.isConfigured()) {
@@ -85,7 +138,7 @@ export const Api = {
         }
       }
 
-      // Step 2: 拉取 Google Sheet 目前的完整資料
+      // Step 2: 拉取 Google Sheet 目前的完整資料 (以 iOS 安全之 GET 模式傳輸)
       const res = await this.callGas('syncAll', {
         localCategories: Storage.getCategories(),
         localMembers: Storage.getMembers(),
@@ -111,11 +164,9 @@ export const Api = {
         if (!ltx || !ltx.id || stillDeletedSet.has(ltx.id)) return;
         const idStr = String(ltx.id);
         if (!cloudMap.has(idStr)) {
-          // 本機有、雲端還沒有 -> 排入自動上傳並保留在合併結果中
           localOnlyToUpload.push(ltx);
           mergedMap.set(idStr, ltx);
         } else {
-          // 兩邊都有 -> 比較建立/修改時間，若本機剛修改過則以較新者為準
           const ctx = cloudMap.get(idStr);
           const lTime = Date.parse(ltx.createdAt || '') || 0;
           const cTime = Date.parse(ctx.createdAt || '') || 0;

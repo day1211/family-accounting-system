@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=8';
+import { Storage } from './storage.js?v=9';
 
 function bufferToBase64Url(buffer) {
   const bytes = new Uint8Array(buffer);

@@ -65,7 +65,18 @@ function promptCreateAnnualSheet() {
   }
 }
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action) {
+    let payload = { ...e.parameter };
+    if (e.parameter.data) {
+      try {
+        const parsed = JSON.parse(e.parameter.data);
+        payload = { ...payload, ...parsed };
+      } catch (err) {}
+    }
+    return handleApiDispatch(payload);
+  }
+
   return jsonResponse({
     ok: true,
     service: 'W&C Family Accounting System API',
@@ -83,48 +94,7 @@ function doPost(e) {
     }
 
     const body = JSON.parse(e.postData.contents);
-    const expectedPasscode = String(getExpectedPasscode() || '').trim();
-    const inputPasscode = String(body.passcode || '').trim();
-    const hasVerifiedPasskey = Boolean(
-      body.passkeyCredentialId && String(body.passkeyCredentialId).length >= 8
-    );
-
-    const isPasscodeMatch =
-      inputPasscode.length > 0 &&
-      (inputPasscode.toLowerCase() === expectedPasscode.toLowerCase() ||
-        inputPasscode.toLowerCase() === DEFAULT_FAMILY_PASSCODE.toLowerCase());
-
-    if (!isPasscodeMatch && !hasVerifiedPasskey) {
-      return jsonResponse({
-        ok: false,
-        error: '家庭通行碼驗證失敗，請確認設定是否正確'
-      });
-    }
-
-    if (body.action === 'verifyAuth') {
-      return jsonResponse({ ok: true });
-    }
-
-    setupAllSheetsIfMissing();
-
-    const action = body.action;
-    if (action === 'syncAll') {
-      return handleSyncAll(body);
-    } else if (action === 'upsertTransaction') {
-      return handleUpsertTransaction(body.transaction);
-    } else if (action === 'batchInsertTransactions') {
-      return handleBatchInsertTransactions(body.transactions || []);
-    } else if (action === 'deleteTransaction') {
-      return handleDeleteTransaction(body.id);
-    } else if (action === 'saveConfig') {
-      return handleSaveConfig(body);
-    } else if (action === 'ensureAnnualSheet') {
-      const targetYear = Number(body.year) || new Date().getFullYear();
-      createOrUpdateAnnualSheet(targetYear);
-      return jsonResponse({ ok: true, year: targetYear });
-    } else {
-      return jsonResponse({ ok: false, error: `未知的動作: ${action}` });
-    }
+    return handleApiDispatch(body);
   } catch (err) {
     return jsonResponse({
       ok: false,
@@ -132,6 +102,51 @@ function doPost(e) {
     });
   } finally {
     lock.releaseLock();
+  }
+}
+
+function handleApiDispatch(body) {
+  const expectedPasscode = String(getExpectedPasscode() || '').trim();
+  const inputPasscode = String(body.passcode || '').trim();
+  const hasVerifiedPasskey = Boolean(
+    body.passkeyCredentialId && String(body.passkeyCredentialId).length >= 8
+  );
+
+  const isPasscodeMatch =
+    inputPasscode.length > 0 &&
+    (inputPasscode.toLowerCase() === expectedPasscode.toLowerCase() ||
+      inputPasscode.toLowerCase() === DEFAULT_FAMILY_PASSCODE.toLowerCase());
+
+  if (!isPasscodeMatch && !hasVerifiedPasskey) {
+    return jsonResponse({
+      ok: false,
+      error: '家庭通行碼驗證失敗，請確認設定是否正確'
+    });
+  }
+
+  if (body.action === 'verifyAuth') {
+    return jsonResponse({ ok: true });
+  }
+
+  setupAllSheetsIfMissing();
+
+  const action = body.action;
+  if (action === 'syncAll' || action === 'fetchData') {
+    return handleSyncAll(body);
+  } else if (action === 'upsertTransaction') {
+    return handleUpsertTransaction(body.transaction);
+  } else if (action === 'batchInsertTransactions') {
+    return handleBatchInsertTransactions(body.transactions || []);
+  } else if (action === 'deleteTransaction') {
+    return handleDeleteTransaction(body.id);
+  } else if (action === 'saveConfig') {
+    return handleSaveConfig(body);
+  } else if (action === 'ensureAnnualSheet') {
+    const targetYear = Number(body.year) || new Date().getFullYear();
+    createOrUpdateAnnualSheet(targetYear);
+    return jsonResponse({ ok: true, year: targetYear });
+  } else {
+    return jsonResponse({ ok: false, error: `未知的動作: ${action}` });
   }
 }
 
