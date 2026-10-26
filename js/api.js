@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=4';
+import { Storage } from './storage.js?v=5';
 
 let isSyncingNow = false;
 
@@ -203,5 +203,10 @@ export const Api = {
     } catch (err) {
       return { offline: true, error: err.message };
     }
+  },
+
+  async ensureAnnualSheet(year) {
+    if (!this.isConfigured()) return { offline: true };
+    return await this.callGas('ensureAnnualSheet', { year });
   }
 };

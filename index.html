@@ -20,7 +20,7 @@
   <script>
     (async function () {
       try {
-        if (localStorage.getItem('wc_sw_version') !== 'v4') {
+        if (localStorage.getItem('wc_sw_version') !== 'v5') {
           if ('serviceWorker' in navigator) {
             const regs = await navigator.serviceWorker.getRegistrations();
             for (const r of regs) await r.unregister();
@@ -29,7 +29,7 @@
             const keys = await caches.keys();
             for (const k of keys) await caches.delete(k);
           }
-          localStorage.setItem('wc_sw_version', 'v4');
+          localStorage.setItem('wc_sw_version', 'v5');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=4" />
+  <link rel="stylesheet" href="./css/styles.css?v=5" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -110,13 +110,13 @@
           </div>
         </div>
 
-        <!-- 月份快速切換器 -->
+        <!-- 月份 / 年份快速切換器 -->
         <div class="flex items-center bg-white rounded-full px-1.5 py-1 shadow-sm border border-slate-200/80">
-          <button id="btn-prev-month" type="button" class="p-1 text-slate-500 hover:text-slate-900 active:scale-90 transition" title="上個月">
+          <button id="btn-prev-month" type="button" class="p-1 text-slate-500 hover:text-slate-900 active:scale-90 transition" title="上個週期">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
           </button>
           <span id="current-month-label" class="px-2 text-xs font-bold text-slate-800 tabular-nums">2026年 10月</span>
-          <button id="btn-next-month" type="button" class="p-1 text-slate-500 hover:text-slate-900 active:scale-90 transition" title="下個月">
+          <button id="btn-next-month" type="button" class="p-1 text-slate-500 hover:text-slate-900 active:scale-90 transition" title="下個週期">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
           </button>
         </div>
@@ -133,92 +133,149 @@
     <main class="flex-1 px-4 pt-3 space-y-3.5">
 
       <!-- ===============================================================
-           TAB 1: 總覽 (Percento Style Dashboard - 單色和諧視覺)
+           TAB 1: 總覽 (支援「月度視角」與「年度 1-12 月總表」一鍵切換)
            =============================================================== -->
       <section id="view-dashboard" class="space-y-3.5">
 
-        <!-- Percento 風格深靛藍漸層財務總覽大卡 -->
-        <div class="percento-hero-gradient rounded-[24px] p-5 text-white relative overflow-hidden">
-          <div class="flex items-center justify-between text-xs text-indigo-200/90 font-medium">
-            <span id="hero-month-title">2026年10月 家庭總支出</span>
-            <span id="hero-sync-time" class="text-[11px] text-indigo-200/75">即時自動同步</span>
-          </div>
-
-          <div class="mt-2.5 flex items-baseline justify-between">
-            <div class="text-3xl font-extrabold tracking-tight tabular-nums" id="hero-total-expense">$0</div>
-            <div class="text-right">
-              <span class="text-[11px] text-indigo-200/75 block">本月淨結餘</span>
-              <span class="text-sm font-bold tabular-nums text-indigo-100" id="hero-net-balance">+$0</span>
-            </div>
-          </div>
-
-          <!-- 收入與預算執行率 -->
-          <div class="mt-4 pt-3.5 border-t border-white/10 grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <span class="text-indigo-200/70 block text-[11px]">本月家庭總收入</span>
-              <span class="font-bold text-sm tabular-nums text-white mt-0.5 block" id="hero-total-income">$0</span>
-            </div>
-            <div>
-              <div class="flex justify-between text-indigo-200/70 text-[11px] mb-1.5">
-                <span>預算執行率</span>
-                <span id="hero-budget-percent" class="font-semibold text-white tabular-nums">0%</span>
-              </div>
-              <div class="w-full h-1.5 rounded-full bg-white/15 overflow-hidden">
-                <div id="hero-budget-bar" class="h-full rounded-full bg-indigo-200 transition-all duration-500" style="width: 0%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 快速操作膠囊列 (單色線條圖示) -->
-        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-          <button id="btn-quick-open-add" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-indigo-950 text-white px-3.5 py-2 text-xs font-bold shadow-sm active:scale-95 transition">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-            <span>記一筆</span>
+        <!-- 視角切換器：月度收支 vs 年度 1-12 月總表 -->
+        <div class="grid grid-cols-2 rounded-2xl bg-slate-200/75 p-1">
+          <button type="button" id="btn-mode-monthly" class="rounded-xl py-1.5 text-xs font-extrabold bg-white text-slate-900 shadow-sm transition">
+            月度收支概覽
           </button>
-          <button id="btn-apply-monthly-fixed" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-white text-slate-700 border border-slate-200/90 px-3.5 py-2 text-xs font-semibold shadow-sm active:scale-95 transition">
-            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            <span>入帳本月固定開銷</span>
-          </button>
-          <button id="btn-jump-search" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-white text-slate-700 border border-slate-200/90 px-3.5 py-2 text-xs font-semibold shadow-sm active:scale-95 transition">
-            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
-            <span>搜尋歷史帳目</span>
+          <button type="button" id="btn-mode-annual" class="rounded-xl py-1.5 text-xs font-extrabold text-slate-500 hover:text-slate-800 transition">
+            年度 1-12 月總表
           </button>
         </div>
 
-        <!-- Percento 招牌：支出結構與分類佔比 (同色系深淺和諧漸層) -->
-        <div class="percento-card p-4">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <h2 class="text-sm font-extrabold text-slate-900">支出結構與分類佔比</h2>
-              <p class="text-[11px] text-slate-400">點擊分類展開子分類比例或檢視明細</p>
+        <!-- 子視角 A：月度收支概覽 -->
+        <div id="dashboard-monthly-panel" class="space-y-3.5">
+          <!-- Percento 風格深靛藍漸層財務總覽大卡 -->
+          <div class="percento-hero-gradient rounded-[24px] p-5 text-white relative overflow-hidden">
+            <div class="flex items-center justify-between text-xs text-indigo-200/90 font-medium">
+              <span id="hero-month-title">2026年10月 家庭總支出</span>
+              <span id="hero-sync-time" class="text-[11px] text-indigo-200/75">即時自動同步</span>
             </div>
-            <button id="btn-open-cat-manager" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">
-              管理分類 →
+
+            <div class="mt-2.5 flex items-baseline justify-between">
+              <div class="text-3xl font-extrabold tracking-tight tabular-nums" id="hero-total-expense">$0</div>
+              <div class="text-right">
+                <span class="text-[11px] text-indigo-200/75 block">本月淨結餘</span>
+                <span class="text-sm font-bold tabular-nums text-indigo-100" id="hero-net-balance">+$0</span>
+              </div>
+            </div>
+
+            <!-- 收入與預算執行率 -->
+            <div class="mt-4 pt-3.5 border-t border-white/10 grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span class="text-indigo-200/70 block text-[11px]">本月家庭總收入</span>
+                <span class="font-bold text-sm tabular-nums text-white mt-0.5 block" id="hero-total-income">$0</span>
+              </div>
+              <div>
+                <div class="flex justify-between text-indigo-200/70 text-[11px] mb-1.5">
+                  <span>預算執行率</span>
+                  <span id="hero-budget-percent" class="font-semibold text-white tabular-nums">0%</span>
+                </div>
+                <div class="w-full h-1.5 rounded-full bg-white/15 overflow-hidden">
+                  <div id="hero-budget-bar" class="h-full rounded-full bg-indigo-200 transition-all duration-500" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 快速操作膠囊列 (單色線條圖示) -->
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+            <button id="btn-quick-open-add" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-indigo-950 text-white px-3.5 py-2 text-xs font-bold shadow-sm active:scale-95 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              <span>記一筆</span>
+            </button>
+            <button id="btn-apply-monthly-fixed" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-white text-slate-700 border border-slate-200/90 px-3.5 py-2 text-xs font-semibold shadow-sm active:scale-95 transition">
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <span>入帳本月固定開銷</span>
+            </button>
+            <button id="btn-jump-search" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-white text-slate-700 border border-slate-200/90 px-3.5 py-2 text-xs font-semibold shadow-sm active:scale-95 transition">
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
+              <span>搜尋歷史帳目</span>
             </button>
           </div>
 
-          <!-- 同色系水平百分比長條圖 -->
-          <div id="allocation-bar" class="allocation-bar-track mb-4">
-            <!-- JS 動態渲染 -->
+          <!-- Percento 招牌：支出結構與分類佔比 (同色系深淺和諧漸層) -->
+          <div class="percento-card p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900">支出結構與分類佔比</h2>
+                <p class="text-[11px] text-slate-400">點擊分類展開子分類比例或檢視明細</p>
+              </div>
+              <button id="btn-open-cat-manager" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">
+                管理分類 →
+              </button>
+            </div>
+
+            <!-- 同色系水平百分比長條圖 -->
+            <div id="allocation-bar" class="allocation-bar-track mb-4">
+              <!-- JS 動態渲染 -->
+            </div>
+
+            <!-- 各主分類佔比列表 -->
+            <div id="category-breakdown-list" class="space-y-2">
+              <!-- JS 動態渲染 -->
+            </div>
           </div>
 
-          <!-- 各主分類佔比列表 -->
-          <div id="category-breakdown-list" class="space-y-2">
-            <!-- JS 動態渲染 -->
+          <!-- 本月近期收支紀錄 -->
+          <div class="percento-card p-4">
+            <div class="flex items-center justify-between mb-2.5">
+              <h2 class="text-sm font-extrabold text-slate-900">近期收支明細</h2>
+              <button id="btn-view-all-tx" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">
+                查看全部 →
+              </button>
+            </div>
+            <div id="recent-transactions-list" class="divide-y divide-slate-100">
+              <!-- JS 動態渲染 -->
+            </div>
           </div>
         </div>
 
-        <!-- 本月近期收支紀錄 -->
-        <div class="percento-card p-4">
-          <div class="flex items-center justify-between mb-2.5">
-            <h2 class="text-sm font-extrabold text-slate-900">近期收支明細</h2>
-            <button id="btn-view-all-tx" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">
-              查看全部 →
-            </button>
+        <!-- 子視角 B：年度 1-12 月總表 (Annual Report Matrix) -->
+        <div id="dashboard-annual-panel" class="hidden space-y-3.5">
+          <!-- 年度 KPI 總覽卡 -->
+          <div class="percento-hero-gradient rounded-[24px] p-5 text-white">
+            <div class="flex items-center justify-between text-xs text-indigo-200/90 font-medium">
+              <span id="annual-hero-title">2026 年度家庭收支總覽</span>
+              <button id="btn-sync-annual-sheet" type="button" class="rounded-full bg-white/10 hover:bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white transition">
+                更新試算表年度分頁
+              </button>
+            </div>
+
+            <div class="mt-3 grid grid-cols-3 gap-2 text-center border-t border-white/10 pt-3">
+              <div>
+                <span class="text-[11px] text-indigo-200/75 block">全年總收入</span>
+                <span id="annual-total-income" class="text-sm font-extrabold tabular-nums text-white mt-0.5 block">$0</span>
+              </div>
+              <div>
+                <span class="text-[11px] text-indigo-200/75 block">全年總支出</span>
+                <span id="annual-total-expense" class="text-sm font-extrabold tabular-nums text-white mt-0.5 block">$0</span>
+              </div>
+              <div>
+                <span class="text-[11px] text-indigo-200/75 block">全年淨結餘</span>
+                <span id="annual-net-balance" class="text-sm font-extrabold tabular-nums text-indigo-100 mt-0.5 block">+$0</span>
+              </div>
+            </div>
           </div>
-          <div id="recent-transactions-list" class="divide-y divide-slate-100">
-            <!-- JS 動態渲染 -->
+
+          <!-- 1-12 月橫向滑動矩陣總表 -->
+          <div class="percento-card p-4 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-sm font-extrabold text-slate-900">1-12 月收支分類總表</h2>
+                <p class="text-[11px] text-slate-400">左右滑動檢視各月份金額、全年合計與月平均</p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto -mx-4 px-4 pb-1">
+              <table id="annual-matrix-table" class="w-full text-left border-collapse text-xs tabular-nums min-w-[760px]">
+                <!-- JS 動態渲染 1-12月完整年報表格 -->
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -236,7 +293,6 @@
             <button id="btn-reset-filters" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">重置篩選</button>
           </div>
 
-          <!-- 關鍵字即時搜尋框 -->
           <div class="relative">
             <input
               id="search-keyword"
@@ -249,7 +305,6 @@
             </svg>
           </div>
 
-          <!-- 篩選條件：時間範圍 / 收支類型 / 主分類 -->
           <div class="grid grid-cols-3 gap-2">
             <select id="filter-scope" class="rounded-xl bg-slate-100 border border-slate-200/80 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
               <option value="all">全部歷史月份</option>
@@ -265,7 +320,6 @@
             </select>
           </div>
 
-          <!-- 篩選結果即時統計摘要 -->
           <div class="rounded-2xl bg-slate-100/80 border border-slate-200/70 px-3.5 py-2.5 flex items-center justify-between text-xs">
             <div>
               <span class="text-slate-500">符合條件：</span>
@@ -278,7 +332,6 @@
           </div>
         </div>
 
-        <!-- 搜尋結果列表 -->
         <div class="percento-card p-4">
           <div id="search-results-list" class="divide-y divide-slate-100">
             <!-- JS 動態渲染 -->
@@ -383,8 +436,8 @@
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
             </div>
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">跨手機無痛換機 &amp; 家人配對</h2>
-              <p class="text-[11px] text-slate-400">換新 iPhone 或幫 Christine 設定手機，掃描即完成</p>
+              <h2 class="text-sm font-extrabold text-slate-900">手機掃描配對 &amp; 跨手機換機</h2>
+              <p class="text-[11px] text-slate-400">用 iPhone 掃描即自動打開 HTTPS 雲端網址並匯入金鑰</p>
             </div>
           </div>
 
@@ -397,7 +450,7 @@
 
           <div class="grid grid-cols-2 gap-2">
             <button id="btn-show-migration-qr" type="button" class="rounded-xl bg-indigo-950 text-white px-3 py-2.5 text-xs font-bold active:scale-95 transition">
-              顯示換機 QR Code
+              顯示手機配對 QR Code
             </button>
             <button id="btn-copy-migration-code" type="button" class="rounded-xl bg-slate-100 text-slate-800 border border-slate-200 px-3 py-2.5 text-xs font-bold active:scale-95 transition">
               複製一鍵移轉碼
@@ -406,9 +459,9 @@
 
           <!-- QR Code 顯示區 -->
           <div id="migration-qr-container" class="hidden rounded-2xl bg-slate-50 border border-slate-200 p-4 text-center space-y-2">
-            <p class="text-xs font-bold text-slate-800">請用新手機相機掃描下方 QR Code</p>
+            <p class="text-xs font-bold text-slate-800">請用 iPhone 相機掃描下方 QR Code</p>
             <div id="qrcode-canvas" class="mx-auto flex justify-center py-2"></div>
-            <p class="text-[11px] text-slate-500">掃描後即自動匯入 Google Sheet 連線與家庭通行碼</p>
+            <p class="text-[11px] text-slate-500">掃描後自動打開 HTTPS 專屬網址並匯入 Google Sheet 金鑰</p>
           </div>
 
           <!-- 在新手機貼上移轉碼匯入 -->
@@ -459,7 +512,6 @@
             </div>
           </div>
 
-          <!-- 備份與清除展示資料 -->
           <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
             <button id="btn-export-csv" type="button" class="text-slate-600 hover:text-slate-900 font-semibold">匯出 CSV 報表</button>
             <button id="btn-export-json" type="button" class="text-slate-600 hover:text-slate-900 font-semibold">匯出完整備份</button>
@@ -490,7 +542,7 @@
       <div class="mx-auto max-w-md grid grid-cols-5 items-center px-2 py-1.5">
         <button data-tab="dashboard" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-indigo-950 font-bold">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          <span class="text-[10px] mt-0.5">總覽</span>
+          <span class="text-[10px] mt-0.5">總覽/年報</span>
         </button>
 
         <button data-tab="search" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-800 font-medium">
@@ -702,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=4"></script>
+  <script type="module" src="./js/app.js?v=5"></script>
 </body>
 </html>

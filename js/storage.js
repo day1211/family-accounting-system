@@ -3,20 +3,29 @@ import {
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
   generateSampleTransactions
-} from './defaultData.js?v=4';
+} from './defaultData.js?v=5';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v4',
-  CATEGORIES: 'wc_fas_categories_v4',
-  MEMBERS: 'wc_fas_members_v4',
-  TEMPLATES: 'wc_fas_templates_v4',
-  SETTINGS: 'wc_fas_settings_v4',
-  DELETED_IDS: 'wc_fas_deleted_ids_v4'
+  TRANSACTIONS: 'wc_fas_transactions_v5',
+  CATEGORIES: 'wc_fas_categories_v5',
+  MEMBERS: 'wc_fas_members_v5',
+  TEMPLATES: 'wc_fas_templates_v5',
+  SETTINGS: 'wc_fas_settings_v5',
+  DELETED_IDS: 'wc_fas_deleted_ids_v5'
 };
 
+// 資安設計：公開程式碼絕不暴露私密金鑰；僅在本機開發環境 (localhost) 提供預設開發連線輔助
+const isLocalDev =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.'));
+
 const DEFAULT_SETTINGS = {
-  gasUrl: 'https://script.google.com/macros/s/AKfycbzCzJplcmz9DuzR70f99RzpZmXltzVAEPBuB9B7xRJxVH9Uy9MYEdPMQUuSYiT5VU0UJQ/exec',
-  passcode: 'WC-Family-2026',
+  gasUrl: isLocalDev
+    ? 'https://script.google.com/macros/s/AKfycbzCzJplcmz9DuzR70f99RzpZmXltzVAEPBuB9B7xRJxVH9Uy9MYEdPMQUuSYiT5VU0UJQ/exec'
+    : '',
+  passcode: isLocalDev ? 'WC-Family-2026' : '',
   defaultMember: 'Willie',
   monthlyBudget: 80000,
   faceIdEnabled: false,
@@ -37,8 +46,18 @@ function safeParse(raw, fallback) {
 
 export const Storage = {
   getSettings() {
-    const saved = safeParse(localStorage.getItem(STORAGE_KEYS.SETTINGS), {});
-    return { ...DEFAULT_SETTINGS, ...saved };
+    // 遷移舊版設定（若使用者已在 v4 儲存過連線設定則自動保留）
+    const savedV5 = safeParse(localStorage.getItem(STORAGE_KEYS.SETTINGS), null);
+    if (savedV5) {
+      return { ...DEFAULT_SETTINGS, ...savedV5 };
+    }
+    const savedV4 = safeParse(localStorage.getItem('wc_fas_settings_v4'), null);
+    if (savedV4 && savedV4.gasUrl) {
+      const merged = { ...DEFAULT_SETTINGS, ...savedV4 };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+      return merged;
+    }
+    return { ...DEFAULT_SETTINGS };
   },
 
   saveSettings(partial) {
@@ -130,7 +149,7 @@ export const Storage = {
   generateMigrationCode(targetMember = '') {
     const settings = this.getSettings();
     const payload = {
-      v: 4,
+      v: 5,
       u: settings.gasUrl || '',
       p: settings.passcode || '',
       m: targetMember || settings.defaultMember || 'Willie',
@@ -143,9 +162,10 @@ export const Storage = {
     return `FAS1:${encoded}`;
   },
 
-  generateMigrationUrl(targetMember = '') {
+  generateMigrationUrl(targetMember = '', customBaseUrl = '') {
     const code = this.generateMigrationCode(targetMember);
-    const url = new URL(window.location.href);
+    const base = customBaseUrl || window.location.href;
+    const url = new URL(base);
     url.search = '';
     url.hash = '';
     url.searchParams.set('setup', code);
@@ -191,7 +211,7 @@ export const Storage = {
 
   exportFullBackupJson() {
     const data = {
-      version: 4,
+      version: 5,
       exportedAt: new Date().toISOString(),
       settings: this.getSettings(),
       members: this.getMembers(),

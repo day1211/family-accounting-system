@@ -1,14 +1,17 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=4';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=4';
-import { Storage } from './storage.js?v=4';
-import { Auth } from './auth.js?v=4';
-import { Api } from './api.js?v=4';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=5';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=5';
+import { Storage } from './storage.js?v=5';
+import { Auth } from './auth.js?v=5';
+import { Api } from './api.js?v=5';
+
+const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
 const State = {
   activeTab: 'dashboard',
+  dashboardMode: 'monthly', // 'monthly' | 'annual'
   currentYearMonth: getTodayYearMonth(),
   expandedCategory: null,
-  syncStatus: 'idle', // 'idle' | 'syncing' | 'synced' | 'pending_auth'
+  syncStatus: 'idle',
   txForm: {
     id: '',
     type: 'expense',
@@ -123,23 +126,52 @@ function switchTab(tabName) {
   renderAll();
 }
 
-function shiftYearMonth(delta) {
+function setDashboardMode(mode) {
+  State.dashboardMode = mode;
+  const btnMonthly = document.getElementById('btn-mode-monthly');
+  const btnAnnual = document.getElementById('btn-mode-annual');
+  const panelMonthly = document.getElementById('dashboard-monthly-panel');
+  const panelAnnual = document.getElementById('dashboard-annual-panel');
+
+  const isMonthly = mode === 'monthly';
+  btnMonthly.className = isMonthly
+    ? 'rounded-xl py-1.5 text-xs font-extrabold bg-white text-slate-900 shadow-sm transition'
+    : 'rounded-xl py-1.5 text-xs font-extrabold text-slate-500 hover:text-slate-800 transition';
+  btnAnnual.className = !isMonthly
+    ? 'rounded-xl py-1.5 text-xs font-extrabold bg-white text-slate-900 shadow-sm transition'
+    : 'rounded-xl py-1.5 text-xs font-extrabold text-slate-500 hover:text-slate-800 transition';
+
+  panelMonthly.classList.toggle('hidden', !isMonthly);
+  panelAnnual.classList.toggle('hidden', isMonthly);
+  renderAll();
+}
+
+function shiftPeriod(delta) {
   const [y, m] = State.currentYearMonth.split('-').map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  const ny = d.getFullYear();
-  const nm = String(d.getMonth() + 1).padStart(2, '0');
-  State.currentYearMonth = `${ny}-${nm}`;
+  if (State.activeTab === 'dashboard' && State.dashboardMode === 'annual') {
+    const ny = y + delta;
+    State.currentYearMonth = `${ny}-${String(m).padStart(2, '0')}`;
+  } else {
+    const d = new Date(y, m - 1 + delta, 1);
+    const ny = d.getFullYear();
+    const nm = String(d.getMonth() + 1).padStart(2, '0');
+    State.currentYearMonth = `${ny}-${nm}`;
+  }
   renderAll();
 }
 
 function formatYearMonthLabel(ym) {
   const [y, m] = ym.split('-');
+  if (State.activeTab === 'dashboard' && State.dashboardMode === 'annual') {
+    return `${y} 年度`;
+  }
   return `${y}年 ${Number(m)}月`;
 }
 
 function renderAll() {
   renderHeaderAndSyncBadge();
   renderDashboard();
+  renderAnnualReport();
   renderSearchView();
   renderManageView();
   renderSettingsView();
@@ -184,7 +216,7 @@ function renderHeaderAndSyncBadge() {
 }
 
 /**
- * 渲染 Tab 1: Percento 風格總覽 Dashboard
+ * 渲染 Tab 1 子視角 A: 月度收支概覽
  */
 function renderDashboard() {
   const allTx = Storage.getTransactions();
@@ -219,7 +251,8 @@ function renderDashboard() {
   });
 
   const netBalance = totalIncome - totalExpense;
-  document.getElementById('hero-month-title').textContent = `${formatYearMonthLabel(ym)} 家庭總支出`;
+  const [y, m] = ym.split('-');
+  document.getElementById('hero-month-title').textContent = `${y}年 ${Number(m)}月 家庭總支出`;
   document.getElementById('hero-total-expense').textContent = formatCurrency(totalExpense);
   document.getElementById('hero-total-income').textContent = formatCurrency(totalIncome);
 
@@ -365,6 +398,145 @@ function renderDashboard() {
     recentEl.innerHTML = recentSlice.map((tx) => renderTransactionRowHtml(tx, categories)).join('');
     bindTransactionRowClicks(recentEl);
   }
+}
+
+/**
+ * 渲染 Tab 1 子視角 B: 年度 1-12 月收支總表 (Annual Report Matrix)
+ */
+function renderAnnualReport() {
+  const year = State.currentYearMonth.slice(0, 4);
+  const allTx = Storage.getTransactions();
+  const categories = Storage.getCategories();
+
+  const yearTx = allTx.filter((t) => String(t.date || '').startsWith(`${year}-`));
+
+  const incomeCats = categories.filter((c) => c.type === 'income').map((c) => c.name);
+  const expenseCats = categories.filter((c) => c.type === 'expense').map((c) => c.name);
+
+  // 補入歷史交易中可能出現但不在預設清單中的分類
+  yearTx.forEach((t) => {
+    if (t.type === 'income' && !incomeCats.includes(t.category)) incomeCats.push(t.category);
+    if (t.type !== 'income' && !expenseCats.includes(t.category)) expenseCats.push(t.category);
+  });
+
+  // 初始化 1~12 月統計矩陣 (index 0~11 對應 1~12月)
+  const incMatrix = {};
+  incomeCats.forEach((c) => {
+    incMatrix[c] = Array(12).fill(0);
+  });
+  const expMatrix = {};
+  expenseCats.forEach((c) => {
+    expMatrix[c] = Array(12).fill(0);
+  });
+
+  const monthlyIncTotals = Array(12).fill(0);
+  const monthlyExpTotals = Array(12).fill(0);
+
+  yearTx.forEach((t) => {
+    const mIdx = Number(String(t.date || '').slice(5, 7)) - 1;
+    if (mIdx < 0 || mIdx > 11) return;
+    const amt = Number(t.amount) || 0;
+    if (t.type === 'income') {
+      if (!incMatrix[t.category]) incMatrix[t.category] = Array(12).fill(0);
+      incMatrix[t.category][mIdx] += amt;
+      monthlyIncTotals[mIdx] += amt;
+    } else {
+      if (!expMatrix[t.category]) expMatrix[t.category] = Array(12).fill(0);
+      expMatrix[t.category][mIdx] += amt;
+      monthlyExpTotals[mIdx] += amt;
+    }
+  });
+
+  const grandIncome = monthlyIncTotals.reduce((a, b) => a + b, 0);
+  const grandExpense = monthlyExpTotals.reduce((a, b) => a + b, 0);
+  const grandNet = grandIncome - grandExpense;
+
+  document.getElementById('annual-hero-title').textContent = `${year} 年度家庭收支總覽 (1-12月)`;
+  document.getElementById('annual-total-income').textContent = formatCurrency(grandIncome);
+  document.getElementById('annual-total-expense').textContent = formatCurrency(grandExpense);
+  const netEl = document.getElementById('annual-net-balance');
+  netEl.textContent = (grandNet >= 0 ? '+' : '-') + formatCurrency(Math.abs(grandNet));
+  netEl.className = `text-sm font-extrabold tabular-nums mt-0.5 block ${
+    grandNet >= 0 ? 'text-indigo-100' : 'text-rose-200'
+  }`;
+
+  // 產生 1~12 月矩陣表格 HTML
+  const monthHeaders = Array.from({ length: 12 }, (_, i) => `<th class="py-2 px-2 text-right font-bold">${i + 1}月</th>`).join('');
+
+  const renderCatRow = (catName, arr, grandTypeTotal) => {
+    const rowSum = arr.reduce((a, b) => a + b, 0);
+    const rowAvg = Math.round(rowSum / 12);
+    const pct = grandTypeTotal > 0 ? ((rowSum / grandTypeTotal) * 100).toFixed(1) + '%' : '0.0%';
+    const cells = arr
+      .map((val) => `<td class="py-2 px-2 text-right ${val > 0 ? 'text-slate-700' : 'text-slate-300'}">${val > 0 ? val.toLocaleString() : '-'}</td>`)
+      .join('');
+    return `
+      <tr class="border-b border-slate-100 hover:bg-slate-50/80">
+        <td class="py-2 pr-3 font-semibold text-slate-800 sticky left-0 bg-white">${catName}</td>
+        ${cells}
+        <td class="py-2 px-2 text-right font-extrabold text-slate-900 bg-slate-50/70">${formatCurrency(rowSum)}</td>
+        <td class="py-2 px-2 text-right text-slate-500">${formatCurrency(rowAvg)}</td>
+        <td class="py-2 pl-2 text-right text-slate-500">${pct}</td>
+      </tr>
+    `;
+  };
+
+  const incRowsHtml = incomeCats.map((c) => renderCatRow(c, incMatrix[c], grandIncome)).join('');
+  const expRowsHtml = expenseCats.map((c) => renderCatRow(c, expMatrix[c], grandExpense)).join('');
+
+  const totalIncCells = monthlyIncTotals
+    .map((v) => `<td class="py-2 px-2 text-right font-bold">${v > 0 ? v.toLocaleString() : '-'}</td>`)
+    .join('');
+  const totalExpCells = monthlyExpTotals
+    .map((v) => `<td class="py-2 px-2 text-right font-bold">${v > 0 ? v.toLocaleString() : '-'}</td>`)
+    .join('');
+  const netCells = monthlyIncTotals
+    .map((inc, i) => {
+      const net = inc - monthlyExpTotals[i];
+      if (inc === 0 && monthlyExpTotals[i] === 0) {
+        return `<td class="py-2 px-2 text-right text-slate-300">-</td>`;
+      }
+      return `<td class="py-2 px-2 text-right font-bold ${net >= 0 ? 'text-indigo-900' : 'text-rose-600'}">${net.toLocaleString()}</td>`;
+    })
+    .join('');
+
+  const tableEl = document.getElementById('annual-matrix-table');
+  tableEl.innerHTML = `
+    <thead>
+      <tr class="border-b-2 border-slate-200 text-slate-500 bg-slate-50">
+        <th class="py-2 pr-3 font-extrabold text-slate-800 sticky left-0 bg-slate-50">分類項目</th>
+        ${monthHeaders}
+        <th class="py-2 px-2 text-right font-extrabold text-slate-900">全年合計</th>
+        <th class="py-2 px-2 text-right font-bold">月平均</th>
+        <th class="py-2 pl-2 text-right font-bold">佔比</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${incRowsHtml}
+      <tr class="bg-indigo-50/70 text-indigo-950 border-b border-indigo-100">
+        <td class="py-2 pr-3 font-extrabold sticky left-0 bg-indigo-50">【家庭總收入】</td>
+        ${totalIncCells}
+        <td class="py-2 px-2 text-right font-extrabold">${formatCurrency(grandIncome)}</td>
+        <td class="py-2 px-2 text-right font-bold">${formatCurrency(grandIncome / 12)}</td>
+        <td class="py-2 pl-2 text-right font-bold">100%</td>
+      </tr>
+      ${expRowsHtml}
+      <tr class="bg-slate-100 text-slate-900 border-b border-slate-200">
+        <td class="py-2 pr-3 font-extrabold sticky left-0 bg-slate-100">【家庭總支出】</td>
+        ${totalExpCells}
+        <td class="py-2 px-2 text-right font-extrabold">${formatCurrency(grandExpense)}</td>
+        <td class="py-2 px-2 text-right font-bold">${formatCurrency(grandExpense / 12)}</td>
+        <td class="py-2 pl-2 text-right font-bold">100%</td>
+      </tr>
+      <tr class="bg-slate-50 border-t-2 border-slate-300">
+        <td class="py-2.5 pr-3 font-extrabold text-slate-900 sticky left-0 bg-slate-50">【每月淨結餘】</td>
+        ${netCells}
+        <td class="py-2.5 px-2 text-right font-extrabold ${grandNet >= 0 ? 'text-indigo-900' : 'text-rose-600'}">${formatCurrency(grandNet)}</td>
+        <td class="py-2.5 px-2 text-right font-bold">${formatCurrency(grandNet / 12)}</td>
+        <td class="py-2.5 pl-2 text-right font-bold">${grandIncome > 0 ? Math.round((grandNet / grandIncome) * 100) + '%' : '-'}</td>
+      </tr>
+    </tbody>
+  `;
 }
 
 function renderTransactionRowHtml(tx, categories) {
@@ -880,9 +1052,6 @@ function closeTransactionModal() {
   modal.classList.remove('flex');
 }
 
-/**
- * 全自動雙向同步程序（無需手動點擊，背景自動對齊裝置與 Google Sheet）
- */
 async function performAutoSync(silent = true) {
   if (!Api.isConfigured()) return;
 
@@ -906,17 +1075,14 @@ async function performAutoSync(silent = true) {
 }
 
 function startAutoSyncDaemon() {
-  // 1. 啟動時立即自動同步一次
   performAutoSync(true);
 
-  // 2. 每 20 秒在背景自動檢查並雙向同步一次
   setInterval(() => {
     if (document.visibilityState === 'visible') {
       performAutoSync(true);
     }
   }, 20000);
 
-  // 3. 當手機從背景切回畫面、獲得焦點或網路恢復時，立即自動同步
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       performAutoSync(true);
@@ -934,7 +1100,7 @@ async function handleApplyMonthlyFixedTemplates() {
   }
 
   const ym = State.currentYearMonth;
-  if (!window.confirm(`確定要將 ${templates.length} 筆「每月固定收支」寫入 ${formatYearMonthLabel(ym)} 帳本嗎？`)) {
+  if (!window.confirm(`確定要將 ${templates.length} 筆「每月固定收支」寫入 ${ym} 帳本嗎？`)) {
     return;
   }
 
@@ -987,8 +1153,23 @@ function bindEvents() {
     });
   });
 
-  document.getElementById('btn-prev-month').addEventListener('click', () => shiftYearMonth(-1));
-  document.getElementById('btn-next-month').addEventListener('click', () => shiftYearMonth(1));
+  // 月度 / 年度 1-12 月總表切換
+  document.getElementById('btn-mode-monthly').addEventListener('click', () => setDashboardMode('monthly'));
+  document.getElementById('btn-mode-annual').addEventListener('click', () => setDashboardMode('annual'));
+
+  document.getElementById('btn-sync-annual-sheet').addEventListener('click', async () => {
+    const year = Number(State.currentYearMonth.slice(0, 4));
+    try {
+      showToast(`正在為 Google Sheet 建立/更新「${year}_年度總表」...`);
+      await Api.ensureAnnualSheet(year);
+      showToast(`已在 Google Sheet 更新「${year}_年度總表 (1-12月)」分頁！`);
+    } catch (err) {
+      showToast(`${err.message}`);
+    }
+  });
+
+  document.getElementById('btn-prev-month').addEventListener('click', () => shiftPeriod(-1));
+  document.getElementById('btn-next-month').addEventListener('click', () => shiftPeriod(1));
 
   document.getElementById('sync-status-badge').addEventListener('click', () => performAutoSync(false));
 
@@ -1209,9 +1390,16 @@ function bindEvents() {
     showToast('已關閉 Face ID 鎖定');
   });
 
+  // 顯示手機配對 QR Code（若在 localhost 則自動指向正式 HTTPS GitHub Pages 網址）
   document.getElementById('btn-show-migration-qr').addEventListener('click', () => {
     const targetMember = document.getElementById('migration-target-member').value;
-    const migUrl = Storage.generateMigrationUrl(targetMember);
+    const isLocal =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.');
+    const baseUrl = isLocal ? PUBLIC_HTTPS_URL : window.location.href;
+    const migUrl = Storage.generateMigrationUrl(targetMember, baseUrl);
+
     const container = document.getElementById('migration-qr-container');
     const canvasEl = document.getElementById('qrcode-canvas');
     canvasEl.innerHTML = '';
@@ -1337,7 +1525,7 @@ function downloadFile(filename, content, mimeType) {
 async function bootstrap() {
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('./sw.js?v=4');
+      await navigator.serviceWorker.register('./sw.js?v=5');
     } catch {
       // ignore SW error
     }
