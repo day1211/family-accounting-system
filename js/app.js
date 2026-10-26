@@ -1,4 +1,5 @@
-import { CATEGORY_ICON_CHOICES, CATEGORY_COLOR_CHOICES } from './defaultData.js';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js';
 import { Storage } from './storage.js';
 import { Auth } from './auth.js';
 import { Api } from './api.js';
@@ -12,14 +13,12 @@ const State = {
     type: 'expense',
     category: '餐飲食品',
     subcategory: '日常三餐',
-    member: 'Willie',
     amount: '',
     date: getTodayDateStr(),
     note: ''
   },
   catForm: {
-    icon: '🍽️',
-    color: '#4F46E5'
+    icon: 'utensils'
   }
 };
 
@@ -40,7 +39,7 @@ function formatCurrency(num) {
   return '$' + n.toLocaleString('en-US');
 }
 
-function showToast(msg, duration = 3200) {
+function showToast(msg, duration = 3000) {
   const banner = document.getElementById('toast-banner');
   const text = document.getElementById('toast-banner-text');
   if (!banner || !text) return;
@@ -61,16 +60,15 @@ async function checkUrlMigrationOnBoot() {
   if (!setupCode) return;
 
   try {
-    const updated = Storage.applyMigrationCode(setupCode);
-    // 清除網址列上的敏感憑證參數
+    Storage.applyMigrationCode(setupCode);
     const cleanUrl = window.location.pathname;
     window.history.replaceState({}, document.title, cleanUrl);
-    showToast(`🎉 已成功匯入 ${updated.defaultMember} 的家庭帳本連線設定！正在同步雲端...`, 4500);
+    showToast('已成功匯入家庭帳本連線設定，正在同步雲端...', 4000);
     if (Api.isConfigured()) {
       await triggerCloudSync(true);
     }
   } catch (err) {
-    showToast(`⚠️ 配對連結解析失敗：${err.message}`, 4000);
+    showToast(`配對連結解析失敗：${err.message}`, 4000);
   }
 }
 
@@ -88,7 +86,6 @@ async function initFaceIdGuard() {
   lockScreen.classList.remove('hidden');
   lockScreen.classList.add('flex');
 
-  // 自動嘗試喚起一次 Face ID
   setTimeout(() => {
     handleFaceIdUnlock();
   }, 250);
@@ -103,16 +100,13 @@ async function handleFaceIdUnlock() {
       errEl.textContent = '';
       document.getElementById('lock-screen').classList.add('hidden');
       document.getElementById('lock-screen').classList.remove('flex');
-      showToast('🔓 Face ID 解鎖成功');
+      showToast('Face ID 解鎖成功');
     }
-  } catch (err) {
+  } catch {
     errEl.textContent = 'Face ID 未完成驗證，可再次點擊圖示或使用下方家庭通行碼解鎖';
   }
 }
 
-/**
- * 切換底部分頁
- */
 function switchTab(tabName) {
   State.activeTab = tabName;
   const views = ['dashboard', 'search', 'manage', 'settings'];
@@ -125,7 +119,7 @@ function switchTab(tabName) {
 
   document.querySelectorAll('.nav-tab-btn').forEach((btn) => {
     const isCurrent = btn.getAttribute('data-tab') === tabName;
-    btn.classList.toggle('text-indigo-600', isCurrent);
+    btn.classList.toggle('text-indigo-950', isCurrent);
     btn.classList.toggle('font-bold', isCurrent);
     btn.classList.toggle('text-slate-400', !isCurrent);
     btn.classList.toggle('font-medium', !isCurrent);
@@ -134,9 +128,6 @@ function switchTab(tabName) {
   renderAll();
 }
 
-/**
- * 月份切換
- */
 function shiftYearMonth(delta) {
   const [y, m] = State.currentYearMonth.split('-').map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -151,9 +142,6 @@ function formatYearMonthLabel(ym) {
   return `${y}年 ${Number(m)}月`;
 }
 
-/**
- * 渲染頂部狀態與所有畫面
- */
 function renderAll() {
   renderHeaderAndSyncBadge();
   renderDashboard();
@@ -167,34 +155,37 @@ function renderHeaderAndSyncBadge() {
   const members = Storage.getMembers();
   document.getElementById('current-month-label').textContent = formatYearMonthLabel(State.currentYearMonth);
 
-  const memberNames = members.map((m) => m.name).join(' · ');
-  document.getElementById('header-subtitle').textContent = `${memberNames} 共用雲端帳本`;
+  const memberNames = members.map((m) => m.name).join(' & ');
+  document.getElementById('header-subtitle').textContent = `${memberNames} 家庭收支帳本`;
 
   const badge = document.getElementById('sync-status-badge');
+  const dot = document.getElementById('sync-status-dot');
   const text = document.getElementById('sync-status-text');
   const queue = Storage.getPendingQueue();
 
   if (Api.isConfigured()) {
     if (queue.length > 0) {
-      badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-800 cursor-pointer';
+      badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700 cursor-pointer';
+      dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-500';
       text.textContent = `待同步 (${queue.length})`;
     } else {
-      badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-emerald-100 text-emerald-800 cursor-pointer';
-      text.textContent = 'Google Sheet 已連線';
+      badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200/60 cursor-pointer';
+      dot.className = 'h-1.5 w-1.5 rounded-full bg-indigo-600';
+      text.textContent = '雲端已同步';
     }
   } else {
-    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-800 cursor-pointer';
-    text.textContent = settings.isDemoData ? '範例展示模式' : '本機儲存模式';
+    badge.className = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 text-slate-600 cursor-pointer';
+    dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-400';
+    text.textContent = settings.isDemoData ? '展示模式' : '本機模式';
   }
 }
 
 /**
- * 渲染 Tab 1: Percento 風格總覽 Dashboard
+ * 渲染 Tab 1: Percento 風格總覽 Dashboard (單色圖示 + 同色系深淺漸層)
  */
 function renderDashboard() {
   const allTx = Storage.getTransactions();
   const categories = Storage.getCategories();
-  const members = Storage.getMembers();
   const settings = Storage.getSettings();
   const ym = State.currentYearMonth;
 
@@ -204,11 +195,6 @@ function renderDashboard() {
 
   let totalExpense = 0;
   let totalIncome = 0;
-  const memberExpenseMap = {};
-  members.forEach((m) => {
-    memberExpenseMap[m.name] = 0;
-  });
-
   const catExpenseMap = {};
   const subcatExpenseMap = {};
 
@@ -218,15 +204,13 @@ function renderDashboard() {
       totalIncome += amt;
     } else {
       totalExpense += amt;
-      memberExpenseMap[t.member] = (memberExpenseMap[t.member] || 0) + amt;
-
       if (!catExpenseMap[t.category]) {
         catExpenseMap[t.category] = { amount: 0, count: 0 };
       }
       catExpenseMap[t.category].amount += amt;
       catExpenseMap[t.category].count += 1;
 
-      const subKey = `${t.category}__${t.subcategory || '未分類'}`;
+      const subKey = `${t.category}__${t.subcategory || '一般'}`;
       subcatExpenseMap[subKey] = (subcatExpenseMap[subKey] || 0) + amt;
     }
   });
@@ -238,85 +222,58 @@ function renderDashboard() {
 
   const netEl = document.getElementById('hero-net-balance');
   netEl.textContent = (netBalance >= 0 ? '+' : '-') + formatCurrency(Math.abs(netBalance));
-  netEl.className = `text-sm font-bold tabular-nums ${netBalance >= 0 ? 'text-emerald-300' : 'text-rose-300'}`;
+  netEl.className = `text-sm font-bold tabular-nums ${netBalance >= 0 ? 'text-indigo-100' : 'text-rose-200'}`;
 
   const budget = Number(settings.monthlyBudget) || 80000;
   const budgetPct = budget > 0 ? Math.min(100, Math.round((totalExpense / budget) * 100)) : 0;
-  document.getElementById('hero-budget-percent').textContent = `${budgetPct}% (${formatCurrency(budget)})`;
+  document.getElementById('hero-budget-percent').textContent = `${budgetPct}%`;
   document.getElementById('hero-budget-bar').style.width = `${budgetPct}%`;
 
-  // 渲染成員分攤比例 (Willie / Christine / 共同)
-  const memberBreakdownEl = document.getElementById('hero-member-breakdown');
-  memberBreakdownEl.innerHTML = members
-    .map((m) => {
-      const mAmt = memberExpenseMap[m.name] || 0;
-      const pct = totalExpense > 0 ? Math.round((mAmt / totalExpense) * 100) : 0;
-      return `
-        <button type="button" data-jump-member="${m.name}" class="flex-1 rounded-xl bg-white/10 hover:bg-white/20 px-2.5 py-1.5 text-left transition">
-          <div class="flex items-center justify-between text-[11px] text-indigo-100">
-            <span class="font-bold truncate">${m.icon || '👤'} ${m.name}</span>
-            <span class="opacity-80 tabular-nums">${pct}%</span>
-          </div>
-          <div class="text-xs font-extrabold text-white tabular-nums mt-0.5">${formatCurrency(mAmt)}</div>
-        </button>
-      `;
-    })
-    .join('');
-
-  memberBreakdownEl.querySelectorAll('[data-jump-member]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const mName = btn.getAttribute('data-jump-member');
-      document.getElementById('filter-scope').value = 'current';
-      document.getElementById('filter-member').value = mName;
-      document.getElementById('filter-type').value = 'expense';
-      switchTab('search');
-    });
-  });
-
-  // 渲染 Percento 招牌分類佔比條與列表
+  // 整理分類佔比並套用同色系深淺漸層 (HARMONIOUS_TONAL_SCALE)
   const breakdownItems = Object.keys(catExpenseMap)
     .map((catName) => {
       const found = categories.find((c) => c.name === catName) || {
         name: catName,
-        icon: '🏷️',
-        color: '#6366F1'
+        icon: 'tag'
       };
       const amount = catExpenseMap[catName].amount;
       const count = catExpenseMap[catName].count;
       const pct = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
       return {
         name: catName,
-        icon: found.icon,
-        color: found.color,
+        icon: found.icon || 'tag',
         amount,
         count,
         pct
       };
     })
-    .sort((a, b) => b.amount - a.amount);
+    .sort((a, b) => b.amount - a.amount)
+    .map((item, idx) => ({
+      ...item,
+      toneColor: HARMONIOUS_TONAL_SCALE[idx % HARMONIOUS_TONAL_SCALE.length]
+    }));
 
   const allocBar = document.getElementById('allocation-bar');
   const catList = document.getElementById('category-breakdown-list');
 
   if (breakdownItems.length === 0) {
-    allocBar.innerHTML = `<div class="w-full h-full bg-slate-200 rounded-full"></div>`;
+    allocBar.innerHTML = `<div class="w-full h-full bg-slate-100 rounded-full"></div>`;
     catList.innerHTML = `
       <div class="py-6 text-center text-xs text-slate-400">
-        本月尚無支出紀錄，點擊下方「＋」開始記第一筆帳吧！
+        本月尚無支出紀錄，點擊下方「＋」開始記帳
       </div>
     `;
   } else {
     allocBar.innerHTML = breakdownItems
       .map(
         (item) =>
-          `<div class="allocation-bar-segment" style="width: ${Math.max(item.pct, 3)}%; background-color: ${item.color};" title="${item.name}: ${item.pct.toFixed(1)}%"></div>`
+          `<div class="allocation-bar-segment" style="width: ${Math.max(item.pct, 3)}%; background-color: ${item.toneColor};" title="${item.name}: ${item.pct.toFixed(1)}%"></div>`
       )
       .join('');
 
     catList.innerHTML = breakdownItems
       .map((item) => {
         const isExpanded = State.expandedCategory === item.name;
-        // 整理該主分類下的子分類佔比
         const subItems = Object.keys(subcatExpenseMap)
           .filter((k) => k.startsWith(`${item.name}__`))
           .map((k) => {
@@ -328,18 +285,19 @@ function renderDashboard() {
           .sort((a, b) => b.sAmt - a.sAmt);
 
         return `
-          <div class="rounded-2xl border border-slate-100 bg-slate-50/70 p-3 transition">
+          <div class="rounded-2xl border border-slate-200/70 bg-slate-50/60 p-3 transition">
             <div class="flex items-center justify-between cursor-pointer" data-toggle-cat="${item.name}">
-              <div class="flex items-center gap-2.5">
-                <span class="flex h-9 w-9 items-center justify-center rounded-xl text-base shadow-sm" style="background-color: ${item.color}18; color: ${item.color}">
-                  ${item.icon}
+              <div class="flex items-center gap-3">
+                <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-200/70 text-slate-700">
+                  ${renderIcon(item.icon, 'w-4 h-4')}
                 </span>
                 <div>
-                  <div class="flex items-center gap-1.5">
+                  <div class="flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full" style="background-color: ${item.toneColor}"></span>
                     <span class="text-xs font-extrabold text-slate-800">${item.name}</span>
-                    <span class="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 border border-slate-200/60 tabular-nums">${item.pct.toFixed(1)}%</span>
+                    <span class="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500 border border-slate-200/70 tabular-nums">${item.pct.toFixed(1)}%</span>
                   </div>
-                  <span class="text-[11px] text-slate-400">${item.count} 筆紀錄 · 點擊展開子分類</span>
+                  <span class="text-[11px] text-slate-400 block mt-0.5">${item.count} 筆紀錄</span>
                 </div>
               </div>
               <div class="text-right">
@@ -355,8 +313,8 @@ function renderDashboard() {
                   .map(
                     (s) => `
                   <div class="flex items-center justify-between text-xs px-1">
-                    <span class="text-slate-600 font-medium">↳ ${s.subName}</span>
-                    <div class="flex items-center gap-2 tabular-nums">
+                    <span class="text-slate-600 font-medium">${s.subName}</span>
+                    <div class="flex items-center gap-2.5 tabular-nums">
                       <span class="text-[11px] text-slate-400">${s.sPct}%</span>
                       <span class="font-bold text-slate-800">${formatCurrency(s.sAmt)}</span>
                     </div>
@@ -365,7 +323,7 @@ function renderDashboard() {
                   )
                   .join('')}
                 <div class="pt-1 text-right">
-                  <button type="button" data-filter-cat="${item.name}" class="text-[11px] font-bold text-indigo-600 hover:underline">
+                  <button type="button" data-filter-cat="${item.name}" class="text-[11px] font-bold text-slate-600 hover:text-slate-950">
                     查看「${item.name}」所有明細 →
                   </button>
                 </div>
@@ -397,49 +355,40 @@ function renderDashboard() {
     });
   }
 
-  // 渲染近期 6 筆收支明細
+  // 渲染近期收支明細 (單色圖示、無付款人雜訊)
   const recentEl = document.getElementById('recent-transactions-list');
   const recentSlice = monthTx.slice(0, 6);
   if (recentSlice.length === 0) {
     recentEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">本月尚無帳目紀錄</div>`;
   } else {
-    recentEl.innerHTML = recentSlice.map((tx) => renderTransactionRowHtml(tx, categories, members)).join('');
+    recentEl.innerHTML = recentSlice.map((tx) => renderTransactionRowHtml(tx, categories)).join('');
     bindTransactionRowClicks(recentEl);
   }
 }
 
-function renderTransactionRowHtml(tx, categories, members) {
+function renderTransactionRowHtml(tx, categories) {
   const catObj = categories.find((c) => c.name === tx.category) || {
-    icon: tx.type === 'income' ? '💰' : '🏷️',
-    color: '#6366F1'
-  };
-  const memObj = members.find((m) => m.name === tx.member) || {
-    name: tx.member || 'Willie',
-    color: '#4F46E5',
-    bg: '#EEF2FF'
+    icon: tx.type === 'income' ? 'wallet' : 'tag'
   };
   const isIncome = tx.type === 'income';
 
   return `
-    <div data-tx-id="${tx.id}" class="py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50/80 rounded-xl px-1 transition">
+    <div data-tx-id="${tx.id}" class="py-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-slate-50 rounded-xl px-1 transition">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-lg" style="background-color: ${catObj.color}18">
-          ${catObj.icon}
+        <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+          ${renderIcon(catObj.icon || 'tag', 'w-4 h-4')}
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-1.5">
             <span class="text-xs font-extrabold text-slate-900 truncate">${tx.category}${tx.subcategory ? ` · ${tx.subcategory}` : ''}</span>
-            <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold" style="background-color: ${memObj.bg || '#EEF2FF'}; color: ${memObj.color || '#4F46E5'}">
-              ${tx.member}
-            </span>
           </div>
-          <p class="text-[11px] text-slate-500 truncate mt-0.5">
+          <p class="text-[11px] text-slate-400 truncate mt-0.5">
             ${tx.note ? tx.note : '無備註'} <span class="text-slate-300">·</span> ${tx.date}
           </p>
         </div>
       </div>
       <div class="text-right shrink-0">
-        <span class="text-sm font-extrabold tabular-nums ${isIncome ? 'text-emerald-600' : 'text-slate-900'}">
+        <span class="text-sm font-extrabold tabular-nums ${isIncome ? 'text-indigo-700' : 'text-slate-900'}">
           ${isIncome ? '+' : '-'}${formatCurrency(tx.amount)}
         </span>
       </div>
@@ -460,23 +409,12 @@ function bindTransactionRowClicks(container) {
  * 渲染 Tab 2: 秒速歷史搜尋與篩選
  */
 function populateSearchFilterDropdowns() {
-  const members = Storage.getMembers();
   const categories = Storage.getCategories();
-
-  const memSelect = document.getElementById('filter-member');
-  const currentMem = memSelect.value || 'all';
-  memSelect.innerHTML =
-    `<option value="all">👥 全部家庭成員</option>` +
-    members.map((m) => `<option value="${m.name}">${m.icon || '👤'} ${m.name}</option>`).join('');
-  if ([...memSelect.options].some((o) => o.value === currentMem)) {
-    memSelect.value = currentMem;
-  }
-
   const catSelect = document.getElementById('filter-category');
   const currentCat = catSelect.value || 'all';
   catSelect.innerHTML =
-    `<option value="all">🏷️ 全部主分類</option>` +
-    categories.map((c) => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('');
+    `<option value="all">全部主分類</option>` +
+    categories.map((c) => `<option value="${c.name}">${c.name}</option>`).join('');
   if ([...catSelect.options].some((o) => o.value === currentCat)) {
     catSelect.value = currentCat;
   }
@@ -486,12 +424,10 @@ function renderSearchView() {
   populateSearchFilterDropdowns();
   const allTx = Storage.getTransactions();
   const categories = Storage.getCategories();
-  const members = Storage.getMembers();
 
   const keyword = (document.getElementById('search-keyword').value || '').trim().toLowerCase();
   const scope = document.getElementById('filter-scope').value;
   const typeFilter = document.getElementById('filter-type').value;
-  const memberFilter = document.getElementById('filter-member').value;
   const catFilter = document.getElementById('filter-category').value;
 
   const filtered = allTx
@@ -502,14 +438,11 @@ function renderSearchView() {
       if (typeFilter !== 'all' && tx.type !== typeFilter) {
         return false;
       }
-      if (memberFilter !== 'all' && tx.member !== memberFilter) {
-        return false;
-      }
       if (catFilter !== 'all' && tx.category !== catFilter) {
         return false;
       }
       if (keyword) {
-        const hay = `${tx.category} ${tx.subcategory} ${tx.note} ${tx.member} ${tx.date} ${tx.amount}`.toLowerCase();
+        const hay = `${tx.category} ${tx.subcategory} ${tx.note} ${tx.date} ${tx.amount}`.toLowerCase();
         if (!hay.includes(keyword)) return false;
       }
       return true;
@@ -535,13 +468,13 @@ function renderSearchView() {
       </div>
     `;
   } else {
-    listEl.innerHTML = filtered.map((tx) => renderTransactionRowHtml(tx, categories, members)).join('');
+    listEl.innerHTML = filtered.map((tx) => renderTransactionRowHtml(tx, categories)).join('');
     bindTransactionRowClicks(listEl);
   }
 }
 
 /**
- * 渲染 Tab 3: 自訂分類、子分類、成員與固定收支模板管理
+ * 渲染 Tab 3: 自訂分類、子分類、固定收支模板與成員稱呼
  */
 function renderManageView() {
   const templates = Storage.getTemplates();
@@ -562,18 +495,17 @@ function renderManageView() {
             <span class="text-xs font-extrabold text-slate-900">${tpl.name}</span>
             ${
               tpl.isMonthlyFixed
-                ? `<span class="rounded-md bg-indigo-100 text-indigo-700 px-1.5 py-0.5 text-[10px] font-bold">每月固定</span>`
+                ? `<span class="rounded-md bg-slate-200/90 text-slate-700 px-1.5 py-0.5 text-[10px] font-bold">每月固定</span>`
                 : ''
             }
-            <span class="rounded-md bg-slate-200/80 text-slate-700 px-1.5 py-0.5 text-[10px] font-semibold">${tpl.member}</span>
           </div>
-          <p class="text-[11px] text-slate-500 mt-0.5">${tpl.category} · ${tpl.subcategory || ''} · ${formatCurrency(tpl.amount)}</p>
+          <p class="text-[11px] text-slate-500 mt-0.5">${tpl.category}${tpl.subcategory ? ` · ${tpl.subcategory}` : ''} · ${formatCurrency(tpl.amount)}</p>
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
-          <button type="button" data-use-tpl="${tpl.id}" class="rounded-xl bg-indigo-600 text-white px-2.5 py-1.5 text-[11px] font-bold">
+          <button type="button" data-use-tpl="${tpl.id}" class="rounded-xl bg-indigo-950 text-white px-2.5 py-1.5 text-[11px] font-bold">
             記一筆
           </button>
-          <button type="button" data-del-tpl="${tpl.id}" class="rounded-xl bg-rose-50 text-rose-600 px-2 py-1.5 text-[11px] font-bold">
+          <button type="button" data-del-tpl="${tpl.id}" class="rounded-xl bg-slate-200/70 text-slate-600 hover:text-rose-600 px-2 py-1.5 text-[11px] font-bold">
             ✕
           </button>
         </div>
@@ -601,44 +533,41 @@ function renderManageView() {
     });
   }
 
-  // 2. 自訂收支分類與子分類管理
+  // 2. 自訂收支分類與子分類管理 (單色圖示)
   const catListEl = document.getElementById('manage-categories-list');
   catListEl.innerHTML = categories
     .map(
       (cat) => `
     <div class="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 space-y-2">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span class="flex h-8 w-8 items-center justify-center rounded-xl text-base" style="background-color: ${cat.color}20">
-            ${cat.icon}
+        <div class="flex items-center gap-2.5">
+          <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-200/70 text-slate-700">
+            ${renderIcon(cat.icon || 'tag', 'w-4 h-4')}
           </span>
           <div>
             <span class="text-xs font-extrabold text-slate-900">${cat.name}</span>
-            <span class="ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              cat.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
-            }">
+            <span class="ml-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold bg-slate-200/80 text-slate-600">
               ${cat.type === 'income' ? '收入' : '支出'}
             </span>
           </div>
         </div>
-        <button type="button" data-del-cat="${cat.id}" class="text-[11px] font-semibold text-rose-500 hover:text-rose-700">
-          刪除分類
+        <button type="button" data-del-cat="${cat.id}" class="text-[11px] font-semibold text-slate-400 hover:text-rose-600">
+          刪除
         </button>
       </div>
 
-      <!-- 子分類膠囊與新增子分類 -->
       <div class="flex flex-wrap items-center gap-1.5 pt-1">
         ${(cat.subcategories || [])
           .map(
             (sub) => `
           <span class="inline-flex items-center gap-1 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
             ${sub}
-            <button type="button" data-del-sub="${cat.id}__${sub}" class="text-slate-400 hover:text-rose-500 ml-0.5">×</button>
+            <button type="button" data-del-sub="${cat.id}__${sub}" class="text-slate-400 hover:text-rose-600 ml-0.5">×</button>
           </span>
         `
           )
           .join('')}
-        <button type="button" data-add-sub="${cat.id}" class="rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 px-2.5 py-1 text-[11px] font-bold hover:bg-indigo-100">
+        <button type="button" data-add-sub="${cat.id}" class="rounded-full bg-slate-200/70 text-slate-700 px-2.5 py-1 text-[11px] font-bold hover:bg-slate-300/70">
           ＋ 子分類
         </button>
       </div>
@@ -654,14 +583,12 @@ function renderManageView() {
       if (!subName || !subName.trim()) return;
       const cats = Storage.getCategories();
       const target = cats.find((c) => c.id === catId);
-      if (target) {
-        if (!target.subcategories.includes(subName.trim())) {
-          target.subcategories.push(subName.trim());
-          Storage.saveCategories(cats);
-          renderAll();
-          await Api.syncSettingsToCloud();
-          showToast(`已新增子分類「${subName.trim()}」`);
-        }
+      if (target && !target.subcategories.includes(subName.trim())) {
+        target.subcategories.push(subName.trim());
+        Storage.saveCategories(cats);
+        renderAll();
+        await Api.syncSettingsToCloud();
+        showToast(`已新增子分類「${subName.trim()}」`);
       }
     });
   });
@@ -697,24 +624,19 @@ function renderManageView() {
     });
   });
 
-  // 3. 家庭成員管理 (Willie, Christine, 共同，支援改名與新增)
+  // 3. 成員稱呼設定 (Willie & Christine，可自訂改名)
   const memListEl = document.getElementById('manage-members-list');
   memListEl.innerHTML = members
     .map(
       (m) => `
     <div class="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-200/70 px-3 py-2">
-      <div class="flex items-center gap-2">
-        <span class="text-base">${m.icon || '👤'}</span>
+      <div class="flex items-center gap-2 text-slate-700">
+        ${renderIcon('user', 'w-4 h-4')}
         <span class="text-xs font-extrabold text-slate-800">${m.name}</span>
       </div>
-      <div class="flex items-center gap-2">
-        <button type="button" data-rename-mem="${m.id}" class="text-[11px] font-semibold text-indigo-600">改名</button>
-        ${
-          members.length > 1
-            ? `<button type="button" data-del-mem="${m.id}" class="text-[11px] font-semibold text-rose-500">刪除</button>`
-            : ''
-        }
-      </div>
+      <button type="button" data-rename-mem="${m.id}" class="text-[11px] font-semibold text-slate-600 hover:text-slate-950">
+        修改稱呼
+      </button>
     </div>
   `
     )
@@ -726,31 +648,13 @@ function renderManageView() {
       const list = Storage.getMembers();
       const target = list.find((m) => m.id === id);
       if (!target) return;
-      const newName = window.prompt('請輸入新的成員稱呼：', target.name);
+      const newName = window.prompt('請輸入新的稱呼：', target.name);
       if (!newName || !newName.trim()) return;
-      const oldName = target.name;
       target.name = newName.trim();
       Storage.saveMembers(list);
-
-      // 同步更新歷史交易中的成員名稱
-      const txs = Storage.getTransactions().map((t) =>
-        t.member === oldName ? { ...t, member: target.name } : t
-      );
-      Storage.saveTransactions(txs);
       renderAll();
       await Api.syncSettingsToCloud();
-      showToast(`成員名稱已更新為「${target.name}」`);
-    });
-  });
-
-  memListEl.querySelectorAll('[data-del-mem]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-del-mem');
-      const list = Storage.getMembers();
-      if (list.length <= 1) return;
-      Storage.saveMembers(list.filter((m) => m.id !== id));
-      renderAll();
-      await Api.syncSettingsToCloud();
+      showToast(`已更新稱呼為「${target.name}」`);
     });
   });
 }
@@ -762,34 +666,25 @@ function renderSettingsView() {
   const settings = Storage.getSettings();
   const members = Storage.getMembers();
 
-  // Face ID 狀態
   const badge = document.getElementById('faceid-badge');
   const btnDisable = document.getElementById('btn-disable-faceid');
   const btnSetup = document.getElementById('btn-setup-faceid');
 
   if (settings.faceIdEnabled) {
-    badge.textContent = '已啟用 Face ID 保護';
-    badge.className = 'rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-emerald-100 text-emerald-700';
+    badge.textContent = '已啟用 Face ID';
+    badge.className = 'rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200/70';
     btnDisable.classList.remove('hidden');
     btnSetup.textContent = '重新綁定本機 Face ID';
   } else {
     badge.textContent = '未啟用';
-    badge.className = 'rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-slate-100 text-slate-600';
+    badge.className = 'rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-600';
     btnDisable.classList.add('hidden');
     btnSetup.textContent = '啟用 / 綁定本機 Face ID';
   }
 
-  // 成員選單
-  const defMemSelect = document.getElementById('setting-default-member');
   const migMemSelect = document.getElementById('migration-target-member');
-
-  defMemSelect.innerHTML = members
-    .map((m) => `<option value="${m.name}">${m.icon || '👤'} ${m.name}</option>`)
-    .join('');
-  defMemSelect.value = settings.defaultMember || 'Willie';
-
   migMemSelect.innerHTML = members
-    .map((m) => `<option value="${m.name}">${m.name}（設定為新手機預設記帳人）</option>`)
+    .map((m) => `<option value="${m.name}">${m.name} 的手機</option>`)
     .join('');
 
   document.getElementById('setting-gas-url').value = settings.gasUrl || '';
@@ -802,9 +697,7 @@ function renderSettingsView() {
  */
 function openTransactionModal(editTxId = '', templateId = '') {
   const categories = Storage.getCategories();
-  const members = Storage.getMembers();
   const templates = Storage.getTemplates();
-  const settings = Storage.getSettings();
 
   const modal = document.getElementById('modal-transaction');
   const btnDelete = document.getElementById('btn-delete-tx');
@@ -818,7 +711,6 @@ function openTransactionModal(editTxId = '', templateId = '') {
         type: found.type || 'expense',
         category: found.category,
         subcategory: found.subcategory || '',
-        member: found.member || settings.defaultMember || 'Willie',
         amount: found.amount,
         date: found.date,
         note: found.note || ''
@@ -834,7 +726,6 @@ function openTransactionModal(editTxId = '', templateId = '') {
         type: tpl.type || 'expense',
         category: tpl.category,
         subcategory: tpl.subcategory || '',
-        member: tpl.member || settings.defaultMember || 'Willie',
         amount: tpl.amount,
         date: getTodayDateStr(),
         note: tpl.note || tpl.name
@@ -849,7 +740,6 @@ function openTransactionModal(editTxId = '', templateId = '') {
       type: 'expense',
       category: firstExpCat ? firstExpCat.name : '餐飲食品',
       subcategory: firstExpCat && firstExpCat.subcategories[0] ? firstExpCat.subcategories[0] : '',
-      member: settings.defaultMember || 'Willie',
       amount: '',
       date: getTodayDateStr(),
       note: ''
@@ -869,7 +759,6 @@ function openTransactionModal(editTxId = '', templateId = '') {
 
 function renderTxModalFields() {
   const categories = Storage.getCategories();
-  const members = Storage.getMembers();
   const templates = Storage.getTemplates();
 
   // 1. 常用模板橫向按鈕
@@ -877,7 +766,7 @@ function renderTxModalFields() {
   quickTplEl.innerHTML = templates
     .map(
       (t) => `
-    <button type="button" data-quick-tpl="${t.id}" class="shrink-0 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 px-3 py-1 text-[11px] font-bold transition">
+    <button type="button" data-quick-tpl="${t.id}" class="shrink-0 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/80 px-3 py-1 text-[11px] font-bold transition">
       ${t.name} (${formatCurrency(t.amount)})
     </button>
   `
@@ -892,7 +781,6 @@ function renderTxModalFields() {
       State.txForm.type = tpl.type || 'expense';
       State.txForm.category = tpl.category;
       State.txForm.subcategory = tpl.subcategory || '';
-      State.txForm.member = tpl.member || State.txForm.member;
       State.txForm.amount = tpl.amount;
       State.txForm.note = tpl.note || tpl.name;
       renderTxModalFields();
@@ -913,34 +801,7 @@ function renderTxModalFields() {
   document.getElementById('tx-date').value = State.txForm.date;
   document.getElementById('tx-note').value = State.txForm.note;
 
-  // 4. 成員選擇膠囊 (Willie / Christine / 共同)
-  const memPills = document.getElementById('tx-member-pills');
-  memPills.innerHTML = members
-    .map((m) => {
-      const active = State.txForm.member === m.name;
-      return `
-      <button type="button" data-pick-member="${m.name}" class="flex-1 rounded-xl py-2 px-3 text-xs font-extrabold border transition ${
-        active
-          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-          : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70'
-      }">
-        ${m.icon || '👤'} ${m.name}
-      </button>
-    `;
-    })
-    .join('');
-
-  memPills.querySelectorAll('[data-pick-member]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      State.txForm.amount = document.getElementById('tx-amount').value;
-      State.txForm.date = document.getElementById('tx-date').value;
-      State.txForm.note = document.getElementById('tx-note').value;
-      State.txForm.member = btn.getAttribute('data-pick-member');
-      renderTxModalFields();
-    });
-  });
-
-  // 5. 主分類網格
+  // 4. 主分類網格 (單色圖示)
   const filteredCats = categories.filter((c) => c.type === State.txForm.type);
   if (!filteredCats.some((c) => c.name === State.txForm.category) && filteredCats.length > 0) {
     State.txForm.category = filteredCats[0].name;
@@ -952,13 +813,13 @@ function renderTxModalFields() {
     .map((c) => {
       const active = State.txForm.category === c.name;
       return `
-      <button type="button" data-pick-cat="${c.name}" class="flex flex-col items-center justify-center rounded-2xl p-2 border text-center transition ${
+      <button type="button" data-pick-cat="${c.name}" class="flex flex-col items-center justify-center rounded-2xl p-2.5 border text-center transition ${
         active
-          ? 'bg-indigo-50 border-indigo-600 ring-2 ring-indigo-600/20'
-          : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100'
+          ? 'bg-indigo-950 text-white border-indigo-950 shadow-sm'
+          : 'bg-slate-50 text-slate-700 border-slate-200/80 hover:bg-slate-100'
       }">
-        <span class="text-xl">${c.icon}</span>
-        <span class="text-[11px] font-bold mt-1 truncate w-full ${active ? 'text-indigo-700' : 'text-slate-700'}">${c.name}</span>
+        ${renderIcon(c.icon || 'tag', 'w-5 h-5')}
+        <span class="text-[11px] font-bold mt-1.5 truncate w-full">${c.name}</span>
       </button>
     `;
     })
@@ -977,7 +838,7 @@ function renderTxModalFields() {
     });
   });
 
-  // 6. 子分類膠囊
+  // 5. 子分類膠囊
   const currentCatObj = filteredCats.find((c) => c.name === State.txForm.category);
   const subList = currentCatObj ? currentCatObj.subcategories || [] : [];
   const subPills = document.getElementById('tx-subcategory-pills');
@@ -989,7 +850,7 @@ function renderTxModalFields() {
         return `
         <button type="button" data-pick-sub="${sub}" class="rounded-full px-3 py-1 text-xs font-bold border transition ${
           active
-            ? 'bg-slate-900 text-white border-slate-900'
+            ? 'bg-indigo-950 text-white border-indigo-950'
             : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
         }">
           ${sub}
@@ -998,7 +859,7 @@ function renderTxModalFields() {
       })
       .join('') +
     `
-    <button type="button" id="btn-inline-add-sub" class="rounded-full px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-600 border border-indigo-200">
+    <button type="button" id="btn-inline-add-sub" class="rounded-full px-2.5 py-1 text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
       ＋ 新增子分類
     </button>
   `;
@@ -1037,13 +898,10 @@ function closeTransactionModal() {
   modal.classList.remove('flex');
 }
 
-/**
- * 觸發與 Google Sheet 雲端雙向同步
- */
 async function triggerCloudSync(silent = false) {
   if (!Api.isConfigured()) {
     if (!silent) {
-      showToast('請先在「設定」分頁填入 Google Apps Script 網址與家庭通行碼');
+      showToast('請先在「設定/換機」分頁填入 Google Apps Script 網址與家庭通行碼');
       switchTab('settings');
     }
     return;
@@ -1056,20 +914,17 @@ async function triggerCloudSync(silent = false) {
     await Api.syncWithCloud();
     renderAll();
     if (!silent) {
-      showToast('☁️ 已與 Google Sheet 家庭總帳本完成同步！');
+      showToast('已與 Google Sheet 家庭總帳本完成同步');
     }
   } catch (err) {
     if (!silent) {
-      showToast(`⚠️ 同步失敗：${err.message}`);
+      showToast(`同步失敗：${err.message}`);
     }
   } finally {
     if (syncIcon) syncIcon.classList.remove('animate-spin');
   }
 }
 
-/**
- * 一鍵批次寫入當月固定收支
- */
 async function handleApplyMonthlyFixedTemplates() {
   const templates = Storage.getTemplates().filter((t) => t.isMonthlyFixed);
   if (templates.length === 0) {
@@ -1078,7 +933,7 @@ async function handleApplyMonthlyFixedTemplates() {
   }
 
   const ym = State.currentYearMonth;
-  if (!window.confirm(`確定要將 ${templates.length} 筆「每月固定收支」一鍵寫入 ${formatYearMonthLabel(ym)} 帳本嗎？`)) {
+  if (!window.confirm(`確定要將 ${templates.length} 筆「每月固定收支」寫入 ${formatYearMonthLabel(ym)} 帳本嗎？`)) {
     return;
   }
 
@@ -1092,7 +947,6 @@ async function handleApplyMonthlyFixedTemplates() {
       category: tpl.category,
       subcategory: tpl.subcategory || '',
       amount: Number(tpl.amount) || 0,
-      member: tpl.member || '共同',
       note: tpl.note || tpl.name,
       createdAt: new Date().toISOString()
     };
@@ -1101,19 +955,14 @@ async function handleApplyMonthlyFixedTemplates() {
   Storage.saveTransactions([...createdList, ...allTx]);
   renderAll();
   await Api.batchInsertTransactions(createdList);
-  showToast(`⚡ 已一鍵寫入 ${createdList.length} 筆本月固定收支！`);
+  showToast(`已一鍵寫入 ${createdList.length} 筆本月固定收支`);
 }
 
-/**
- * 綁定所有 DOM 事件
- */
 function bindEvents() {
-  // 頂部 Toast 關閉
   document.getElementById('btn-close-toast').addEventListener('click', () => {
     document.getElementById('toast-banner').classList.add('hidden');
   });
 
-  // Face ID 解鎖畫面事件
   document.getElementById('btn-trigger-faceid').addEventListener('click', () => {
     handleFaceIdUnlock();
   });
@@ -1124,33 +973,28 @@ function bindEvents() {
       document.getElementById('lock-screen').classList.add('hidden');
       document.getElementById('lock-screen').classList.remove('flex');
       document.getElementById('input-unlock-passcode').value = '';
-      showToast('🔓 通行碼驗證成功');
+      showToast('通行碼驗證成功');
     } else {
       document.getElementById('lock-error-msg').textContent = '家庭通行碼不正確，請重新輸入';
     }
   });
 
-  // 底部導覽切換
   document.querySelectorAll('.nav-tab-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       switchTab(btn.getAttribute('data-tab'));
     });
   });
 
-  // 月份切換
   document.getElementById('btn-prev-month').addEventListener('click', () => shiftYearMonth(-1));
   document.getElementById('btn-next-month').addEventListener('click', () => shiftYearMonth(1));
 
-  // 同步按鈕
   document.getElementById('btn-sync-now').addEventListener('click', () => triggerCloudSync(false));
   document.getElementById('sync-status-badge').addEventListener('click', () => triggerCloudSync(false));
 
-  // 開啟新增帳目 Modal
   document.getElementById('btn-nav-add').addEventListener('click', () => openTransactionModal());
   document.getElementById('btn-quick-open-add').addEventListener('click', () => openTransactionModal());
   document.getElementById('btn-close-tx-modal').addEventListener('click', closeTransactionModal);
 
-  // 一鍵套用固定收支與快速跳轉
   document.getElementById('btn-apply-monthly-fixed').addEventListener('click', handleApplyMonthlyFixedTemplates);
   document.getElementById('btn-jump-search').addEventListener('click', () => switchTab('search'));
   document.getElementById('btn-view-all-tx').addEventListener('click', () => switchTab('search'));
@@ -1160,7 +1004,6 @@ function bindEvents() {
     switchTab('manage');
   });
 
-  // 記帳 Modal 內收支類型切換
   document.querySelectorAll('.tx-type-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       State.txForm.amount = document.getElementById('tx-amount').value;
@@ -1171,7 +1014,6 @@ function bindEvents() {
     });
   });
 
-  // 儲存收支表單提交
   document.getElementById('form-transaction').addEventListener('submit', async (e) => {
     e.preventDefault();
     const amount = Number(document.getElementById('tx-amount').value);
@@ -1190,7 +1032,6 @@ function bindEvents() {
       category: State.txForm.category,
       subcategory: State.txForm.subcategory,
       amount,
-      member: State.txForm.member,
       note,
       createdAt: new Date().toISOString()
     };
@@ -1212,13 +1053,12 @@ function bindEvents() {
     if (syncRes && syncRes.queued) {
       showToast('已儲存於本機（待網路恢復自動同步至 Google Sheet）');
     } else if (Api.isConfigured()) {
-      showToast('✅ 已儲存並同步至 Google Sheet 總帳本！');
+      showToast('已儲存並同步至 Google Sheet 總帳本');
     } else {
-      showToast('✅ 已儲存收支紀錄！');
+      showToast('已儲存收支紀錄');
     }
   });
 
-  // 刪除單筆收支
   document.getElementById('btn-delete-tx').addEventListener('click', async () => {
     const id = State.txForm.id;
     if (!id) return;
@@ -1229,11 +1069,10 @@ function bindEvents() {
     closeTransactionModal();
     renderAll();
     await Api.deleteTransaction(id);
-    showToast('🗑️ 已刪除該筆帳目');
+    showToast('已刪除該筆帳目');
   });
 
-  // Tab 2 搜尋與篩選即時監聽
-  ['search-keyword', 'filter-scope', 'filter-type', 'filter-member', 'filter-category'].forEach((id) => {
+  ['search-keyword', 'filter-scope', 'filter-type', 'filter-category'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', renderSearchView);
@@ -1245,12 +1084,11 @@ function bindEvents() {
     document.getElementById('search-keyword').value = '';
     document.getElementById('filter-scope').value = 'all';
     document.getElementById('filter-type').value = 'all';
-    document.getElementById('filter-member').value = 'all';
     document.getElementById('filter-category').value = 'all';
     renderSearchView();
   });
 
-  // Tab 3 新增自訂主分類 Modal
+  // 新增自訂主分類 Modal
   document.getElementById('btn-add-category').addEventListener('click', () => {
     renderCategoryModalPickers();
     const modal = document.getElementById('modal-category');
@@ -1281,8 +1119,7 @@ function bindEvents() {
       id: `cat-${Date.now()}`,
       type,
       name,
-      icon: State.catForm.icon || '🏷️',
-      color: State.catForm.color || '#4F46E5',
+      icon: State.catForm.icon || 'tag',
       subcategories: subcategories.length > 0 ? subcategories : ['一般']
     });
     Storage.saveCategories(cats);
@@ -1294,18 +1131,14 @@ function bindEvents() {
 
     renderAll();
     await Api.syncSettingsToCloud();
-    showToast(`🎉 已新增自訂主分類「${name}」`);
+    showToast(`已新增自訂主分類「${name}」`);
   });
 
-  // Tab 3 新增模板 Modal
+  // 新增模板 Modal
   document.getElementById('btn-add-template').addEventListener('click', () => {
     const cats = Storage.getCategories();
-    const mems = Storage.getMembers();
     document.getElementById('tpl-category').innerHTML = cats
-      .map((c) => `<option value="${c.name}">${c.icon} ${c.name}</option>`)
-      .join('');
-    document.getElementById('tpl-member').innerHTML = mems
-      .map((m) => `<option value="${m.name}">${m.name}</option>`)
+      .map((c) => `<option value="${c.name}">${c.name}</option>`)
       .join('');
 
     const modal = document.getElementById('modal-template');
@@ -1325,7 +1158,6 @@ function bindEvents() {
     const amount = Number(document.getElementById('tpl-amount').value) || 0;
     const type = document.getElementById('tpl-type').value;
     const category = document.getElementById('tpl-category').value;
-    const member = document.getElementById('tpl-member').value;
     const subcategory = document.getElementById('tpl-subcategory').value.trim();
     const note = document.getElementById('tpl-note').value.trim();
     const isMonthlyFixed = document.getElementById('tpl-is-fixed').checked;
@@ -1338,7 +1170,6 @@ function bindEvents() {
       category,
       subcategory,
       amount,
-      member,
       note: note || name,
       isMonthlyFixed,
       dayOfMonth: 5
@@ -1350,42 +1181,18 @@ function bindEvents() {
     document.getElementById('modal-template').classList.remove('flex');
     renderAll();
     await Api.syncSettingsToCloud();
-    showToast(`⚡ 已新增常用模板「${name}」`);
+    showToast(`已新增常用模板「${name}」`);
   });
 
-  // Tab 3 新增家庭成員
-  document.getElementById('btn-add-member').addEventListener('click', async () => {
-    const input = document.getElementById('input-new-member');
-    const name = input.value.trim();
-    if (!name) return;
-    const list = Storage.getMembers();
-    if (list.some((m) => m.name === name)) {
-      showToast('此成員名稱已存在');
-      return;
-    }
-    list.push({
-      id: `member-${Date.now()}`,
-      name,
-      color: '#0EA5E9',
-      bg: '#F0F9FF',
-      icon: '👤'
-    });
-    Storage.saveMembers(list);
-    input.value = '';
-    renderAll();
-    await Api.syncSettingsToCloud();
-    showToast(`已新增成員「${name}」`);
-  });
-
-  // Tab 4 Face ID 綁定與測試
+  // Face ID 綁定與測試
   document.getElementById('btn-setup-faceid').addEventListener('click', async () => {
     try {
       const settings = Storage.getSettings();
       await Auth.registerFaceId(settings.defaultMember || 'Willie');
       renderSettingsView();
-      showToast('🔐 已成功綁定本機 Face ID！下次開啟將使用生物辨識保護');
+      showToast('已成功綁定本機 Face ID');
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(`${err.message}`);
     }
   });
 
@@ -1407,7 +1214,7 @@ function bindEvents() {
     showToast('已關閉 Face ID 鎖定');
   });
 
-  // Tab 4 跨手機換機 QR Code 與移轉碼
+  // 跨手機換機 QR Code 與移轉碼
   document.getElementById('btn-show-migration-qr').addEventListener('click', () => {
     const targetMember = document.getElementById('migration-target-member').value;
     const migUrl = Storage.generateMigrationUrl(targetMember);
@@ -1434,7 +1241,7 @@ function bindEvents() {
     const code = Storage.generateMigrationCode(targetMember);
     try {
       await navigator.clipboard.writeText(code);
-      showToast(`📋 已複製「${targetMember}」專屬換機移轉碼！可貼到新手機還原`);
+      showToast(`已複製「${targetMember}」專屬換機移轉碼`);
     } catch {
       window.prompt('請複製下方換機移轉碼：', code);
     }
@@ -1443,29 +1250,27 @@ function bindEvents() {
   document.getElementById('btn-apply-migration').addEventListener('click', async () => {
     const raw = document.getElementById('input-import-migration').value;
     try {
-      const updated = Storage.applyMigrationCode(raw);
+      Storage.applyMigrationCode(raw);
       document.getElementById('input-import-migration').value = '';
       renderAll();
-      showToast(`🎉 換機設定匯入成功！預設記帳人：${updated.defaultMember}`);
+      showToast('換機設定匯入成功');
       if (Api.isConfigured()) {
         await triggerCloudSync(false);
       }
     } catch (err) {
-      showToast(`⚠️ ${err.message}`);
+      showToast(`${err.message}`);
     }
   });
 
-  // Tab 4 儲存 Google Sheet 設定
+  // 儲存 Google Sheet 設定
   document.getElementById('btn-save-settings').addEventListener('click', async () => {
     const gasUrl = document.getElementById('setting-gas-url').value.trim();
     const passcode = document.getElementById('setting-passcode').value.trim();
-    const defaultMember = document.getElementById('setting-default-member').value;
     const monthlyBudget = Number(document.getElementById('setting-monthly-budget').value) || 80000;
 
     Storage.saveSettings({
       gasUrl,
       passcode,
-      defaultMember,
       monthlyBudget
     });
 
@@ -1473,14 +1278,13 @@ function bindEvents() {
     if (gasUrl) {
       await triggerCloudSync(false);
     } else {
-      showToast('✅ 設定已儲存於本機');
+      showToast('設定已儲存於本機');
     }
   });
 
-  // 匯出 CSV / JSON 與清除範例
   document.getElementById('btn-export-csv').addEventListener('click', () => {
     const txs = Storage.getTransactions();
-    const headers = ['ID', '日期', '類型', '主分類', '子分類', '金額', '成員', '備註'];
+    const headers = ['ID', '日期', '類型', '主分類', '子分類', '金額', '備註'];
     const rows = txs.map((t) => [
       t.id,
       t.date,
@@ -1488,7 +1292,6 @@ function bindEvents() {
       t.category,
       t.subcategory || '',
       t.amount,
-      t.member,
       `"${String(t.note || '').replace(/"/g, '""')}"`
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -1505,7 +1308,7 @@ function bindEvents() {
     Storage.saveTransactions([]);
     Storage.saveSettings({ isDemoData: false });
     renderAll();
-    showToast('🗑️ 已清空本機範例帳目');
+    showToast('已清空本機範例帳目');
   });
 }
 
@@ -1513,31 +1316,19 @@ function renderCategoryModalPickers() {
   const iconEl = document.getElementById('cat-icon-picker');
   iconEl.innerHTML = CATEGORY_ICON_CHOICES.map(
     (ic) => `
-    <button type="button" data-pick-icon="${ic}" class="h-9 w-9 rounded-xl text-lg flex items-center justify-center border ${
-      State.catForm.icon === ic ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 bg-slate-50'
-    }">${ic}</button>
+    <button type="button" data-pick-icon="${ic}" class="h-9 w-9 rounded-xl flex items-center justify-center border transition ${
+      State.catForm.icon === ic
+        ? 'border-indigo-950 bg-indigo-950 text-white'
+        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+    }">
+      ${renderIcon(ic, 'w-4 h-4')}
+    </button>
   `
   ).join('');
 
   iconEl.querySelectorAll('[data-pick-icon]').forEach((btn) => {
     btn.addEventListener('click', () => {
       State.catForm.icon = btn.getAttribute('data-pick-icon');
-      renderCategoryModalPickers();
-    });
-  });
-
-  const colorEl = document.getElementById('cat-color-picker');
-  colorEl.innerHTML = CATEGORY_COLOR_CHOICES.map(
-    (col) => `
-    <button type="button" data-pick-color="${col}" class="h-7 w-7 rounded-full border-2 ${
-      State.catForm.color === col ? 'border-slate-900 scale-110' : 'border-transparent'
-    }" style="background-color: ${col}"></button>
-  `
-  ).join('');
-
-  colorEl.querySelectorAll('[data-pick-color]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      State.catForm.color = btn.getAttribute('data-pick-color');
       renderCategoryModalPickers();
     });
   });
@@ -1555,15 +1346,12 @@ function downloadFile(filename, content, mimeType) {
   URL.revokeObjectURL(url);
 }
 
-/**
- * 註冊 PWA Service Worker 並啟動應用程式
- */
 async function bootstrap() {
   if ('serviceWorker' in navigator) {
     try {
       await navigator.serviceWorker.register('./sw.js');
-    } catch (e) {
-      // ignore SW error on file://
+    } catch {
+      // ignore SW error
     }
   }
 
@@ -1572,7 +1360,6 @@ async function bootstrap() {
   renderAll();
   await initFaceIdGuard();
 
-  // 若已設定 Google Sheet 連線，背景自動同步最新帳務
   if (Api.isConfigured()) {
     triggerCloudSync(true);
   }

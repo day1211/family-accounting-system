@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>W&amp;C 家庭記帳本 — Percento Style</title>
+  <title>W&amp;C 家庭記帳本</title>
   <meta name="description" content="Willie & Christine 專屬雲端家庭記帳與總帳本同步系統" />
 
   <!-- iOS PWA 主畫面全螢幕支援 -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="家庭記帳" />
-  <meta name="theme-color" content="#4F46E5" />
+  <meta name="theme-color" content="#1E1B4B" />
 
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
@@ -21,179 +21,183 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <link rel="stylesheet" href="./css/styles.css" />
 </head>
-<body class="min-h-screen bg-[#F4F5F9] text-slate-900 antialiased selection:bg-indigo-500 selection:text-white">
+<body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
   <!-- =====================================================================
-       🔐 Face ID / 通行碼 鎖定畫面 (當啟用 Face ID 保護時顯示)
+       Face ID / 通行碼 鎖定畫面 (單色極簡風格)
        ===================================================================== -->
   <div id="lock-screen" class="fixed inset-0 z-50 hidden flex-col items-center justify-between bg-slate-950 px-6 py-14 text-white">
     <div class="mt-6 text-center">
-      <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-600/20 border border-indigo-400/30 shadow-lg">
-        <span class="text-3xl">🏡</span>
+      <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 border border-white/15">
+        <svg class="w-7 h-7 text-indigo-200" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline stroke-linecap="round" stroke-linejoin="round" points="9 22 9 12 15 12 15 22"/>
+        </svg>
       </div>
-      <h1 class="text-2xl font-extrabold tracking-tight">W&amp;C 家庭記帳本</h1>
-      <p class="mt-1 text-sm text-slate-400">Willie &amp; Christine 專屬雲端帳務系統</p>
+      <h1 class="text-xl font-extrabold tracking-tight">W&amp;C 家庭記帳本</h1>
+      <p class="mt-1 text-xs text-slate-400">Willie &amp; Christine 專屬雲端帳務系統</p>
     </div>
 
     <div class="flex flex-col items-center my-auto w-full max-w-xs">
-      <button id="btn-trigger-faceid" type="button" class="relative faceid-pulse flex h-24 w-24 flex-col items-center justify-center rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-2xl shadow-indigo-500/40 active:scale-95 transition">
-        <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+      <button id="btn-trigger-faceid" type="button" class="relative faceid-pulse flex h-22 w-22 flex-col items-center justify-center rounded-3xl bg-indigo-900/80 border border-indigo-400/30 p-5 shadow-xl active:scale-95 transition">
+        <svg class="w-11 h-11 text-indigo-100" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M7 3H5a2 2 0 00-2 2v2m14-4h2a2 2 0 012 2v2M7 21H5a2 2 0 01-2-2v-2m14 4h2a2 2 0 002-2v-2M9 9h.01M15 9h.01M12 9v3m-2.5 3.5a3.5 3.5 0 005 0" />
         </svg>
       </button>
-      <p class="mt-5 text-base font-semibold text-indigo-200">點擊使用 Face ID 解鎖</p>
-      <p id="lock-error-msg" class="mt-2 text-xs text-rose-400 min-h-[1.25rem] text-center"></p>
+      <p class="mt-5 text-sm font-semibold text-slate-200">點擊使用 Face ID 解鎖</p>
+      <p id="lock-error-msg" class="mt-2 text-xs text-slate-400 min-h-[1.25rem] text-center"></p>
 
-      <!-- 備援通行碼輸入（換手機或電腦端開啟時可用） -->
-      <div class="mt-6 w-full border-t border-slate-800 pt-5">
-        <label class="block text-xs text-slate-400 mb-2 text-center">或輸入家庭通行碼 / 備援密碼解鎖</label>
+      <div class="mt-6 w-full border-t border-slate-800/80 pt-5">
+        <label class="block text-xs text-slate-400 mb-2 text-center">或輸入家庭通行碼解鎖</label>
         <div class="flex gap-2">
-          <input id="input-unlock-passcode" type="password" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none" />
-          <button id="btn-unlock-passcode" type="button" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-sm font-semibold text-indigo-300 transition">
+          <input id="input-unlock-passcode" type="password" placeholder="輸入家庭通行碼..." class="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:border-indigo-400 focus:outline-none" />
+          <button id="btn-unlock-passcode" type="button" class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 transition">
             解鎖
           </button>
         </div>
       </div>
     </div>
 
-    <div class="text-xs text-slate-500 text-center">
-      受 WebAuthn Face ID 與家庭私密金鑰雙重保護
+    <div class="text-[11px] text-slate-500 text-center">
+      受 WebAuthn Face ID 與家庭私密金鑰保護
     </div>
   </div>
 
   <!-- =====================================================================
-       📱 主應用程式容器 (模仿 Percento 手機版居中版面)
+       主應用程式容器 (Percento 手機版居中版面)
        ===================================================================== -->
   <div class="mx-auto max-w-md min-h-screen flex flex-col pb-safe-nav">
 
     <!-- 頂部導覽與月份切換列 -->
-    <header class="sticky top-0 z-30 bg-[#F4F5F9]/90 backdrop-blur-md px-4 pt-3 pb-2.5 border-b border-slate-200/60">
+    <header class="sticky top-0 z-30 bg-[#F4F5F8]/90 backdrop-blur-md px-4 pt-3 pb-2.5 border-b border-slate-200/70">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2.5">
-          <img src="./assets/icon.svg" alt="Icon" class="w-9 h-9 rounded-xl shadow-sm" />
+          <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-950 text-white shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline stroke-linecap="round" stroke-linejoin="round" points="9 22 9 12 15 12 15 22"/>
+            </svg>
+          </div>
           <div>
             <div class="flex items-center gap-1.5">
-              <h1 class="text-base font-extrabold tracking-tight text-slate-900">W&amp;C 家庭帳本</h1>
-              <span id="sync-status-badge" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-amber-100 text-amber-800 cursor-pointer" title="點擊同步或設定雲端">
-                <span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-                <span id="sync-status-text">本機展示</span>
+              <h1 class="text-sm font-extrabold tracking-tight text-slate-900">W&amp;C 家庭帳本</h1>
+              <span id="sync-status-badge" class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200/80 text-slate-700 cursor-pointer" title="點擊同步或設定雲端">
+                <span id="sync-status-dot" class="h-1.5 w-1.5 rounded-full bg-slate-500"></span>
+                <span id="sync-status-text">本機模式</span>
               </span>
             </div>
-            <p class="text-[11px] text-slate-500" id="header-subtitle">Willie &amp; Christine 共同記帳</p>
+            <p class="text-[11px] text-slate-500" id="header-subtitle">Willie &amp; Christine</p>
           </div>
         </div>
 
         <!-- 月份快速切換器 -->
         <div class="flex items-center bg-white rounded-full px-1.5 py-1 shadow-sm border border-slate-200/80">
-          <button id="btn-prev-month" type="button" class="p-1 text-slate-500 hover:text-indigo-600 active:scale-90 transition" title="上個月">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          <button id="btn-prev-month" type="button" class="p-1 text-slate-500 hover:text-slate-900 active:scale-90 transition" title="上個月">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
           </button>
           <span id="current-month-label" class="px-2 text-xs font-bold text-slate-800 tabular-nums">2026年 10月</span>
-          <button id="btn-next-month" type="button" class="p-1 text-slate-500 hover:text-indigo-600 active:scale-90 transition" title="下個月">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+          <button id="btn-next-month" type="button" class="p-1 text-slate-500 hover:text-slate-900 active:scale-90 transition" title="下個月">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
           </button>
         </div>
       </div>
     </header>
 
-    <!-- 頂部通知橫幅 (如：換機配對成功提示 / 雲端同步提示) -->
-    <div id="toast-banner" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] rounded-2xl bg-slate-900/95 text-white px-4 py-3 text-sm font-medium shadow-xl border border-slate-700 flex items-center justify-between gap-2">
+    <!-- 頂部通知橫幅 -->
+    <div id="toast-banner" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 hidden max-w-sm w-[92%] rounded-2xl bg-slate-900/95 text-white px-4 py-3 text-xs font-medium shadow-xl border border-slate-800 flex items-center justify-between gap-2">
       <span id="toast-banner-text">操作成功</span>
       <button id="btn-close-toast" class="text-slate-400 hover:text-white text-xs">✕</button>
     </div>
 
-    <!-- 主內容區 (4 大分頁) -->
-    <main class="flex-1 px-4 pt-3 space-y-4">
+    <!-- 主內容區 -->
+    <main class="flex-1 px-4 pt-3 space-y-3.5">
 
       <!-- ===============================================================
-           TAB 1: 總覽 (Percento Style Dashboard)
+           TAB 1: 總覽 (Percento Style Dashboard - 單色和諧視覺)
            =============================================================== -->
-      <section id="view-dashboard" class="space-y-4">
+      <section id="view-dashboard" class="space-y-3.5">
 
-        <!-- Percento 風格紫金漸層財務總覽大卡 -->
-        <div class="percento-hero-gradient rounded-[26px] p-5 text-white relative overflow-hidden">
-          <div class="absolute -right-8 -top-8 h-36 w-36 rounded-full bg-white/10 blur-xl pointer-events-none"></div>
-          <div class="flex items-center justify-between text-xs text-indigo-100/90 font-medium">
+        <!-- Percento 風格深靛藍漸層財務總覽大卡 -->
+        <div class="percento-hero-gradient rounded-[24px] p-5 text-white relative overflow-hidden">
+          <div class="flex items-center justify-between text-xs text-indigo-200/90 font-medium">
             <span id="hero-month-title">2026年10月 家庭總支出</span>
-            <button id="btn-sync-now" type="button" class="inline-flex items-center gap-1 rounded-full bg-white/15 hover:bg-white/25 px-2.5 py-1 text-[11px] font-semibold text-white transition active:scale-95">
-              <svg id="sync-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-              <span>同步 Google Sheet</span>
+            <button id="btn-sync-now" type="button" class="inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 px-2.5 py-1 text-[11px] font-semibold text-white transition active:scale-95">
+              <svg id="sync-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>同步雲端</span>
             </button>
           </div>
 
-          <div class="mt-2 flex items-baseline justify-between">
+          <div class="mt-2.5 flex items-baseline justify-between">
             <div class="text-3xl font-extrabold tracking-tight tabular-nums" id="hero-total-expense">$0</div>
             <div class="text-right">
-              <span class="text-[11px] text-indigo-100/80 block">本月淨結餘</span>
-              <span class="text-sm font-bold tabular-nums text-emerald-300" id="hero-net-balance">+$0</span>
+              <span class="text-[11px] text-indigo-200/75 block">本月淨結餘</span>
+              <span class="text-sm font-bold tabular-nums text-indigo-100" id="hero-net-balance">+$0</span>
             </div>
           </div>
 
           <!-- 收入與預算執行率 -->
-          <div class="mt-4 pt-3 border-t border-white/15 grid grid-cols-2 gap-3 text-xs">
+          <div class="mt-4 pt-3.5 border-t border-white/10 grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span class="text-indigo-100/75 block">本月家庭總收入</span>
-              <span class="font-bold text-sm tabular-nums text-white" id="hero-total-income">$0</span>
+              <span class="text-indigo-200/70 block text-[11px]">本月家庭總收入</span>
+              <span class="font-bold text-sm tabular-nums text-white mt-0.5 block" id="hero-total-income">$0</span>
             </div>
             <div>
-              <div class="flex justify-between text-indigo-100/75 mb-1">
-                <span>月預算執行率</span>
+              <div class="flex justify-between text-indigo-200/70 text-[11px] mb-1.5">
+                <span>預算執行率</span>
                 <span id="hero-budget-percent" class="font-semibold text-white tabular-nums">0%</span>
               </div>
-              <div class="w-full h-2 rounded-full bg-black/25 overflow-hidden">
-                <div id="hero-budget-bar" class="h-full rounded-full bg-gradient-to-r from-emerald-300 to-amber-300 transition-all duration-500" style="width: 0%"></div>
+              <div class="w-full h-1.5 rounded-full bg-white/15 overflow-hidden">
+                <div id="hero-budget-bar" class="h-full rounded-full bg-indigo-200 transition-all duration-500" style="width: 0%"></div>
               </div>
             </div>
           </div>
-
-          <!-- Willie / Christine / 共同 成員支出分攤統計 -->
-          <div id="hero-member-breakdown" class="mt-3.5 pt-3 border-t border-white/15 flex items-center justify-between gap-2 text-xs">
-            <!-- JS 動態渲染 -->
-          </div>
         </div>
 
-        <!-- 快速操作膠囊列：一鍵帶入固定收支 / 快速查帳 -->
+        <!-- 快速操作膠囊列 (單色線條圖示) -->
         <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-          <button id="btn-quick-open-add" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-indigo-600 text-white px-3.5 py-2 text-xs font-bold shadow-sm active:scale-95 transition">
-            <span>＋ 記一筆</span>
+          <button id="btn-quick-open-add" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-indigo-950 text-white px-3.5 py-2 text-xs font-bold shadow-sm active:scale-95 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            <span>記一筆</span>
           </button>
           <button id="btn-apply-monthly-fixed" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-white text-slate-700 border border-slate-200/90 px-3.5 py-2 text-xs font-semibold shadow-sm active:scale-95 transition">
-            <span>⚡ 一鍵入帳本月固定開銷</span>
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span>入帳本月固定開銷</span>
           </button>
           <button id="btn-jump-search" type="button" class="shrink-0 inline-flex items-center gap-1.5 rounded-2xl bg-white text-slate-700 border border-slate-200/90 px-3.5 py-2 text-xs font-semibold shadow-sm active:scale-95 transition">
-            <span>🔍 搜尋歷史帳目</span>
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
+            <span>搜尋歷史帳目</span>
           </button>
         </div>
 
-        <!-- Percento 招牌：分類佔比視覺化卡片 (Category Allocation) -->
+        <!-- Percento 招牌：支出結構與分類佔比 (同色系深淺和諧漸層) -->
         <div class="percento-card p-4">
           <div class="flex items-center justify-between mb-3">
             <div>
               <h2 class="text-sm font-extrabold text-slate-900">支出結構與分類佔比</h2>
-              <p class="text-[11px] text-slate-500">點擊分類可展開子分類比例或篩選明細</p>
+              <p class="text-[11px] text-slate-400">點擊分類展開子分類比例或檢視明細</p>
             </div>
-            <button id="btn-open-cat-manager" type="button" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-              自訂分類 →
+            <button id="btn-open-cat-manager" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">
+              管理分類 →
             </button>
           </div>
 
-          <!-- Percento 多色水平百分比長條圖 -->
+          <!-- 同色系水平百分比長條圖 -->
           <div id="allocation-bar" class="allocation-bar-track mb-4">
             <!-- JS 動態渲染 -->
           </div>
 
-          <!-- 各主分類佔比列表 (含點擊展開子分類明細) -->
-          <div id="category-breakdown-list" class="space-y-2.5">
+          <!-- 各主分類佔比列表 -->
+          <div id="category-breakdown-list" class="space-y-2">
             <!-- JS 動態渲染 -->
           </div>
         </div>
 
         <!-- 本月近期收支紀錄 -->
         <div class="percento-card p-4">
-          <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center justify-between mb-2.5">
             <h2 class="text-sm font-extrabold text-slate-900">近期收支明細</h2>
-            <button id="btn-view-all-tx" type="button" class="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-              查看全部 / 搜尋 →
+            <button id="btn-view-all-tx" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">
+              查看全部 →
             </button>
           </div>
           <div id="recent-transactions-list" class="divide-y divide-slate-100">
@@ -208,8 +212,11 @@
       <section id="view-search" class="hidden space-y-3.5">
         <div class="percento-card p-4 space-y-3">
           <div class="flex items-center justify-between">
-            <h2 class="text-sm font-extrabold text-slate-900">🔍 快速查找歷史收支</h2>
-            <button id="btn-reset-filters" type="button" class="text-xs font-semibold text-indigo-600">重置篩選</button>
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.3-4.3"/></svg>
+              <h2 class="text-sm font-extrabold text-slate-900">快速查找歷史收支</h2>
+            </div>
+            <button id="btn-reset-filters" type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-900">重置篩選</button>
           </div>
 
           <!-- 關鍵字即時搜尋框 -->
@@ -218,41 +225,38 @@
               id="search-keyword"
               type="search"
               placeholder="搜尋備註、店名、分類（例：好市多、房貸、加油）..."
-              class="w-full rounded-2xl bg-slate-100/90 border border-slate-200/80 pl-9 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:outline-none"
+              class="w-full rounded-2xl bg-slate-100/90 border border-slate-200/80 pl-9 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-900 focus:outline-none"
             />
-            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3.5 top-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
           </div>
 
-          <!-- 篩選條件：時間範圍 / 成員 / 收支類型 / 分類 -->
-          <div class="grid grid-cols-2 gap-2">
-            <select id="filter-scope" class="rounded-xl bg-slate-100 border border-slate-200/80 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
-              <option value="all">📅 全部歷史月份</option>
-              <option value="current">📅 僅限目前選擇月份</option>
+          <!-- 篩選條件：時間範圍 / 收支類型 / 主分類 -->
+          <div class="grid grid-cols-3 gap-2">
+            <select id="filter-scope" class="rounded-xl bg-slate-100 border border-slate-200/80 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
+              <option value="all">全部歷史月份</option>
+              <option value="current">僅目前月份</option>
             </select>
-            <select id="filter-type" class="rounded-xl bg-slate-100 border border-slate-200/80 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
-              <option value="all">💳 全部收支類型</option>
-              <option value="expense">💸 僅看支出</option>
-              <option value="income">💰 僅看收入</option>
+            <select id="filter-type" class="rounded-xl bg-slate-100 border border-slate-200/80 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
+              <option value="all">全部收支</option>
+              <option value="expense">僅看支出</option>
+              <option value="income">僅看收入</option>
             </select>
-            <select id="filter-member" class="rounded-xl bg-slate-100 border border-slate-200/80 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
-              <option value="all">👥 全部家庭成員</option>
-            </select>
-            <select id="filter-category" class="rounded-xl bg-slate-100 border border-slate-200/80 px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
-              <option value="all">🏷️ 全部主分類</option>
+            <select id="filter-category" class="rounded-xl bg-slate-100 border border-slate-200/80 px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none">
+              <option value="all">全部主分類</option>
             </select>
           </div>
 
           <!-- 篩選結果即時統計摘要 -->
-          <div class="rounded-2xl bg-indigo-50/80 border border-indigo-100 px-3.5 py-2.5 flex items-center justify-between text-xs">
+          <div class="rounded-2xl bg-slate-100/80 border border-slate-200/70 px-3.5 py-2.5 flex items-center justify-between text-xs">
             <div>
               <span class="text-slate-500">符合條件：</span>
-              <span id="search-result-count" class="font-extrabold text-indigo-700">0 筆</span>
+              <span id="search-result-count" class="font-extrabold text-slate-900">0 筆</span>
             </div>
             <div class="flex items-center gap-3 tabular-nums">
-              <span>支出 <strong id="search-sum-expense" class="text-rose-600">$0</strong></span>
-              <span>收入 <strong id="search-sum-income" class="text-emerald-600">$0</strong></span>
+              <span class="text-slate-500">支出 <strong id="search-sum-expense" class="text-slate-900">$0</strong></span>
+              <span class="text-slate-500">收入 <strong id="search-sum-income" class="text-indigo-700">$0</strong></span>
             </div>
           </div>
         </div>
@@ -266,18 +270,18 @@
       </section>
 
       <!-- ===============================================================
-           TAB 3: 分類、成員與固定收支模板管理 (Manage Categories & Templates)
+           TAB 3: 分類與固定收支模板管理 (Manage Categories & Templates)
            =============================================================== -->
-      <section id="view-manage" class="hidden space-y-4">
+      <section id="view-manage" class="hidden space-y-3.5">
 
         <!-- 1. 固定收支與常用模板管理 -->
         <div class="percento-card p-4">
           <div class="flex items-center justify-between mb-2">
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">⚡ 固定收支與常用模板</h2>
-              <p class="text-[11px] text-slate-500">記帳時可 1 秒帶入，或每月一鍵批次入帳固定開銷</p>
+              <h2 class="text-sm font-extrabold text-slate-900">固定收支與常用模板</h2>
+              <p class="text-[11px] text-slate-400">記帳時 1 秒帶入，或每月批次入帳固定開銷</p>
             </div>
-            <button id="btn-add-template" type="button" class="rounded-xl bg-indigo-50 text-indigo-600 px-3 py-1.5 text-xs font-bold hover:bg-indigo-100">
+            <button id="btn-add-template" type="button" class="rounded-xl bg-slate-100 text-slate-800 px-3 py-1.5 text-xs font-bold hover:bg-slate-200">
               ＋ 新增模板
             </button>
           </div>
@@ -290,126 +294,113 @@
         <div class="percento-card p-4">
           <div class="flex items-center justify-between mb-2">
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">🏷️ 自訂收支分類與子分類</h2>
-              <p class="text-[11px] text-slate-500">自由新增主分類與子分類，自動同步至 Google Sheet</p>
+              <h2 class="text-sm font-extrabold text-slate-900">自訂收支分類與子分類</h2>
+              <p class="text-[11px] text-slate-400">自由新增主分類與子分類，同步至 Google Sheet</p>
             </div>
-            <button id="btn-add-category" type="button" class="rounded-xl bg-indigo-50 text-indigo-600 px-3 py-1.5 text-xs font-bold hover:bg-indigo-100">
+            <button id="btn-add-category" type="button" class="rounded-xl bg-slate-100 text-slate-800 px-3 py-1.5 text-xs font-bold hover:bg-slate-200">
               ＋ 新增主分類
             </button>
           </div>
 
-          <div id="manage-categories-list" class="mt-3 space-y-3">
+          <div id="manage-categories-list" class="mt-3 space-y-2.5">
             <!-- JS 動態渲染 -->
           </div>
         </div>
 
-        <!-- 3. 家庭成員管理 (預設 Willie, Christine, 共同，可自訂名稱) -->
+        <!-- 3. 家庭成員稱呼設定 (僅保留 Willie & Christine，可改名) -->
         <div class="percento-card p-4">
           <div class="flex items-center justify-between mb-2">
             <div>
-              <h2 class="text-sm font-extrabold text-slate-900">👥 家庭成員 / 付款人設定</h2>
-              <p class="text-[11px] text-slate-500">預設為 Willie、Christine、共同，可自由修改或新增</p>
+              <h2 class="text-sm font-extrabold text-slate-900">成員稱呼設定</h2>
+              <p class="text-[11px] text-slate-400">預設為 Willie 與 Christine，可自訂顯示名稱</p>
             </div>
           </div>
-          <div id="manage-members-list" class="mt-3 space-y-2">
+          <div id="manage-members-list" class="mt-2.5 space-y-2">
             <!-- JS 動態渲染 -->
-          </div>
-          <div class="mt-3 flex gap-2">
-            <input id="input-new-member" type="text" placeholder="新增成員或標籤名稱（例：育兒基金）" class="flex-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs focus:bg-white focus:border-indigo-500 focus:outline-none" />
-            <button id="btn-add-member" type="button" class="rounded-xl bg-slate-900 text-white px-3.5 py-2 text-xs font-bold">
-              新增
-            </button>
           </div>
         </div>
       </section>
 
       <!-- ===============================================================
-           TAB 4: 設定、Face ID、跨手機移轉 & 總資產預覽 (Settings & Migration)
+           TAB 4: 設定、Face ID、跨手機移轉 & 總資產預覽
            =============================================================== -->
-      <section id="view-settings" class="hidden space-y-4">
+      <section id="view-settings" class="hidden space-y-3.5">
 
         <!-- 區塊 A：iPhone Face ID 生物辨識鎖定 -->
         <div class="percento-card p-4 space-y-3">
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-2.5">
-              <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 text-xl font-bold">
-                🔐
+              <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               </div>
               <div>
                 <h2 class="text-sm font-extrabold text-slate-900">iPhone Face ID 安全解鎖</h2>
-                <p class="text-[11px] text-slate-500">使用 Apple 原生 WebAuthn 生物辨識保護家庭帳本</p>
+                <p class="text-[11px] text-slate-400">使用 Apple WebAuthn 生物辨識保護帳本</p>
               </div>
             </div>
-            <span id="faceid-badge" class="rounded-full px-2.5 py-0.5 text-[11px] font-bold bg-slate-100 text-slate-600">未啟用</span>
+            <span id="faceid-badge" class="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-slate-100 text-slate-600">未啟用</span>
           </div>
 
-          <div class="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1.5 border border-slate-200/60">
-            <p>• 啟用後，每次開啟 App 會喚起 <strong>iPhone Face ID</strong> 進行瞬間驗證。</p>
-            <p>• 支援 <strong>iCloud 鑰匙圈 (Passkeys)</strong>，換新 iPhone 登入同一個 Apple ID 可直接繼承，或用家庭通行碼一鍵重新綁定。</p>
+          <div class="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600 space-y-1 border border-slate-200/60">
+            <p>• 啟用後，開啟 App 會喚起 <strong>iPhone Face ID</strong> 快速驗證。</p>
+            <p>• 支援 <strong>iCloud 鑰匙圈 (Passkeys)</strong>，換新手機登入同 Apple ID 可自動繼承或一鍵重綁。</p>
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <button id="btn-setup-faceid" type="button" class="flex-1 rounded-xl bg-indigo-600 text-white px-4 py-2.5 text-xs font-bold shadow-sm hover:bg-indigo-700 active:scale-95 transition">
+            <button id="btn-setup-faceid" type="button" class="flex-1 rounded-xl bg-indigo-950 text-white px-4 py-2.5 text-xs font-bold shadow-sm hover:bg-indigo-900 active:scale-95 transition">
               啟用 / 綁定本機 Face ID
             </button>
             <button id="btn-test-lock" type="button" class="rounded-xl bg-slate-100 text-slate-700 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-200">
-              立即鎖定測試
+              鎖定測試
             </button>
-            <button id="btn-disable-faceid" type="button" class="hidden rounded-xl bg-rose-50 text-rose-600 px-3.5 py-2.5 text-xs font-semibold hover:bg-rose-100">
+            <button id="btn-disable-faceid" type="button" class="hidden rounded-xl bg-slate-100 text-slate-500 px-3.5 py-2.5 text-xs font-semibold hover:bg-slate-200">
               關閉
             </button>
           </div>
         </div>
 
-        <!-- 區塊 B：跨手機無痛移轉 & 邀請 Christine 配對 (QR Code + 移轉碼) -->
-        <div class="percento-card p-4 space-y-3 border-indigo-200">
+        <!-- 區塊 B：跨手機無痛移轉 & 邀請 Christine 配對 -->
+        <div class="percento-card p-4 space-y-3">
           <div class="flex items-center gap-2.5">
-            <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 text-xl">
-              📲
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
             </div>
             <div>
               <h2 class="text-sm font-extrabold text-slate-900">跨手機無痛換機 &amp; 家人配對</h2>
-              <p class="text-[11px] text-slate-500">近期換新 iPhone 或幫 Christine 設定手機，1 秒完成移轉</p>
+              <p class="text-[11px] text-slate-400">換新 iPhone 或幫 Christine 設定手機，掃描即完成</p>
             </div>
           </div>
 
-          <div class="rounded-2xl bg-emerald-50/70 border border-emerald-200/70 p-3 text-xs text-emerald-950 space-y-1">
-            <p class="font-bold">💡 換新手機怎麼移轉？</p>
-            <p>1. 所有帳務與分類都存在雲端 Google Sheet，換機<strong>零資料遺失</strong>。</p>
-            <p>2. 點擊下方「產生換機 / 配對 QR Code」，拿新 iPhone 相機一掃（或傳送移轉碼），自動帶入網址與通行碼並完成同步！</p>
-          </div>
-
           <div class="flex items-center gap-2">
-            <label class="text-xs font-semibold text-slate-600 shrink-0">配對目標身分：</label>
+            <label class="text-xs font-semibold text-slate-600 shrink-0">配對身分：</label>
             <select id="migration-target-member" class="flex-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800">
-              <option value="Willie">Willie（我的新手機換機）</option>
-              <option value="Christine">Christine（幫老婆手機配對）</option>
+              <!-- JS 動態渲染 Willie / Christine -->
             </select>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
-            <button id="btn-show-migration-qr" type="button" class="rounded-xl bg-slate-900 text-white px-3 py-2.5 text-xs font-bold active:scale-95 transition">
-              📷 顯示換機 QR Code
+            <button id="btn-show-migration-qr" type="button" class="rounded-xl bg-indigo-950 text-white px-3 py-2.5 text-xs font-bold active:scale-95 transition">
+              顯示換機 QR Code
             </button>
-            <button id="btn-copy-migration-code" type="button" class="rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-2.5 text-xs font-bold active:scale-95 transition">
-              📋 複製一鍵移轉碼
+            <button id="btn-copy-migration-code" type="button" class="rounded-xl bg-slate-100 text-slate-800 border border-slate-200 px-3 py-2.5 text-xs font-bold active:scale-95 transition">
+              複製一鍵移轉碼
             </button>
           </div>
 
-          <!-- QR Code 顯示區 (預設隱藏) -->
-          <div id="migration-qr-container" class="hidden rounded-2xl bg-white border border-slate-200 p-4 text-center space-y-2">
+          <!-- QR Code 顯示區 -->
+          <div id="migration-qr-container" class="hidden rounded-2xl bg-slate-50 border border-slate-200 p-4 text-center space-y-2">
             <p class="text-xs font-bold text-slate-800">請用新手機相機掃描下方 QR Code</p>
             <div id="qrcode-canvas" class="mx-auto flex justify-center py-2"></div>
-            <p class="text-[11px] text-slate-500">掃描後打開網頁即自動匯入 Google Sheet 連線與家庭通行碼</p>
+            <p class="text-[11px] text-slate-500">掃描後即自動匯入 Google Sheet 連線與家庭通行碼</p>
           </div>
 
           <!-- 在新手機貼上移轉碼匯入 -->
           <div class="pt-2 border-t border-slate-100">
-            <label class="block text-xs font-semibold text-slate-600 mb-1.5">在新手機貼上「換機移轉碼 (FAS1:...)」快速還原：</label>
+            <label class="block text-xs font-semibold text-slate-600 mb-1.5">在新手機貼上「換機移轉碼 (FAS1:...)」還原：</label>
             <div class="flex gap-2">
-              <input id="input-import-migration" type="text" placeholder="貼上 FAS1:... 移轉碼或配對網址" class="flex-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs focus:bg-white focus:border-indigo-500 focus:outline-none" />
-              <button id="btn-apply-migration" type="button" class="rounded-xl bg-emerald-600 text-white px-3.5 py-2 text-xs font-bold">
-                套用還原
+              <input id="input-import-migration" type="text" placeholder="貼上 FAS1:... 移轉碼或配對網址" class="flex-1 rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs focus:bg-white focus:border-indigo-900 focus:outline-none" />
+              <button id="btn-apply-migration" type="button" class="rounded-xl bg-slate-900 text-white px-3.5 py-2 text-xs font-bold">
+                套用
               </button>
             </div>
           </div>
@@ -417,44 +408,35 @@
 
         <!-- 區塊 C：Google Sheet 雲端總帳本連線設定 -->
         <div class="percento-card p-4 space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 text-xl">
-                ☁️
-              </div>
-              <div>
-                <h2 class="text-sm font-extrabold text-slate-900">Google Sheet 總帳本雲端連線</h2>
-                <p class="text-[11px] text-slate-500">自動寫入收支明細與產生月度家庭總帳本報表</p>
-              </div>
+          <div class="flex items-center gap-2.5">
+            <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            </div>
+            <div>
+              <h2 class="text-sm font-extrabold text-slate-900">Google Sheet 總帳本雲端連線</h2>
+              <p class="text-[11px] text-slate-400">自動寫入收支明細與更新月度家庭總帳本</p>
             </div>
           </div>
 
           <div class="space-y-2.5">
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">Google Apps Script 網頁應用程式網址</label>
-              <input id="setting-gas-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none" />
+              <input id="setting-gas-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">家庭存取通行碼 (Passcode)</label>
-                <input id="setting-passcode" type="password" placeholder="例：WC-Family-2026" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none" />
+                <label class="block text-xs font-semibold text-slate-700 mb-1">家庭存取通行碼</label>
+                <input id="setting-passcode" type="password" placeholder="WC-Family-2026" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
               </div>
               <div>
-                <label class="block text-xs font-semibold text-slate-700 mb-1">這支手機預設記帳人</label>
-                <select id="setting-default-member" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none">
-                  <!-- JS 動態渲染 -->
-                </select>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">每月支出預算 (NT$)</label>
+                <input id="setting-monthly-budget" type="number" step="1000" placeholder="80000" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
               </div>
             </div>
 
-            <div>
-              <label class="block text-xs font-semibold text-slate-700 mb-1">家庭每月支出預算目標 (NT$)</label>
-              <input id="setting-monthly-budget" type="number" step="1000" placeholder="80000" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none" />
-            </div>
-
-            <div class="flex gap-2 pt-1">
-              <button id="btn-save-settings" type="button" class="flex-1 rounded-xl bg-indigo-600 text-white px-4 py-2.5 text-xs font-bold shadow-sm hover:bg-indigo-700 active:scale-95 transition">
+            <div class="pt-1">
+              <button id="btn-save-settings" type="button" class="w-full rounded-xl bg-indigo-950 text-white px-4 py-2.5 text-xs font-bold shadow-sm hover:bg-indigo-900 active:scale-95 transition">
                 儲存設定並立即同步雲端
               </button>
             </div>
@@ -462,36 +444,22 @@
 
           <!-- 備份與清除展示資料 -->
           <div class="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <button id="btn-export-csv" type="button" class="text-slate-600 hover:text-indigo-600 font-semibold">📥 匯出 CSV 報表</button>
-            <button id="btn-export-json" type="button" class="text-slate-600 hover:text-indigo-600 font-semibold">📦 匯出完整備份檔</button>
-            <button id="btn-clear-demo" type="button" class="text-rose-600 hover:text-rose-700 font-semibold">🗑️ 清空本機範例帳目</button>
+            <button id="btn-export-csv" type="button" class="text-slate-600 hover:text-slate-900 font-semibold">匯出 CSV 報表</button>
+            <button id="btn-export-json" type="button" class="text-slate-600 hover:text-slate-900 font-semibold">匯出完整備份</button>
+            <button id="btn-clear-demo" type="button" class="text-slate-500 hover:text-rose-600 font-semibold">清空本機範例</button>
           </div>
         </div>
 
-        <!-- 區塊 D：Percento 風格 V2 資產配置預覽 (股票、債券、ETF 擴充藍圖) -->
-        <div class="percento-card p-4 bg-gradient-to-br from-slate-900 to-indigo-950 text-white border-none">
+        <!-- 區塊 D：Percento 風格 V2 資產配置預覽 -->
+        <div class="percento-card p-4 bg-slate-900 text-white border-none">
           <div class="flex items-center justify-between mb-2">
-            <span class="rounded-full bg-indigo-500/30 border border-indigo-400/40 px-2.5 py-0.5 text-[10px] font-bold text-indigo-200">V2 Roadmap 預留架構</span>
+            <span class="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold text-indigo-200">V2 預留架構</span>
             <span class="text-xs text-slate-400">Percento 資產負債表模式</span>
           </div>
-          <h3 class="text-sm font-extrabold">📈 家庭總資產配置（股票 / 債券 / 現金）</h3>
-          <p class="mt-1 text-xs text-slate-300 leading-relaxed">
-            系統底層與 Google Sheet 已預留 <code class="text-amber-300">Assets</code> 擴充結構。第二版可直接在同一個 App 追蹤台美股、債券 ETF 與銀行存款的即時市值佔比！
+          <h3 class="text-sm font-extrabold">家庭總資產配置（股票 / 債券 / 現金）</h3>
+          <p class="mt-1 text-xs text-slate-400 leading-relaxed">
+            底層已預留資產負債表結構，第二版可直接追蹤台美股、債券 ETF 與存款市值佔比。
           </p>
-          <div class="mt-3 space-y-1.5 text-xs">
-            <div class="flex justify-between text-slate-300">
-              <span>📊 股票部位 (台股 / 美股 ETF)</span>
-              <span class="font-bold tabular-nums text-amber-300">55%</span>
-            </div>
-            <div class="flex justify-between text-slate-300">
-              <span>🛡️ 債券部位 (美債 ETF / 直債)</span>
-              <span class="font-bold tabular-nums text-emerald-300">30%</span>
-            </div>
-            <div class="flex justify-between text-slate-300">
-              <span>💵 現金與緊急預備金</span>
-              <span class="font-bold tabular-nums text-sky-300">15%</span>
-            </div>
-          </div>
         </div>
 
       </section>
@@ -499,42 +467,42 @@
     </main>
 
     <!-- =====================================================================
-         底部固定導覽列 (模仿 Percento iOS 底部 Tab + 中央記帳按鈕)
+         底部固定導覽列 (單色極簡圖示)
          ===================================================================== -->
     <nav class="fixed bottom-0 left-0 right-0 z-30 bottom-nav-bar">
       <div class="mx-auto max-w-md grid grid-cols-5 items-center px-2 py-1.5">
-        <button data-tab="dashboard" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-indigo-600 font-bold">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <button data-tab="dashboard" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-indigo-950 font-bold">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
           <span class="text-[10px] mt-0.5">總覽</span>
         </button>
 
-        <button data-tab="search" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-700 font-medium">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <button data-tab="search" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-800 font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
           <span class="text-[10px] mt-0.5">查帳</span>
         </button>
 
-        <!-- 中央突出「＋ 記帳」按鈕 -->
+        <!-- 中央「＋ 記帳」按鈕 -->
         <div class="flex justify-center">
-          <button id="btn-nav-add" type="button" class="-mt-4 flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/35 p-3 active:scale-90 transition">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.6" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <button id="btn-nav-add" type="button" class="-mt-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-950 text-white shadow-lg shadow-indigo-950/25 p-3 active:scale-90 transition">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
           </button>
         </div>
 
-        <button data-tab="manage" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-700 font-medium">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/></svg>
+        <button data-tab="manage" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-800 font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/></svg>
           <span class="text-[10px] mt-0.5">分類/模板</span>
         </button>
 
-        <button data-tab="settings" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-700 font-medium">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-          <span class="text-[10px] mt-0.5">FaceID/換機</span>
+        <button data-tab="settings" class="nav-tab-btn flex flex-col items-center justify-center py-1 text-slate-400 hover:text-slate-800 font-medium">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.9" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <span class="text-[10px] mt-0.5">設定/換機</span>
         </button>
       </div>
     </nav>
   </div>
 
   <!-- =====================================================================
-       ➕ 新增 / 編輯收支 Bottom Sheet Modal (Percento 極速記帳面板)
+       新增 / 編輯收支 Bottom Sheet Modal (無付款人欄位，專注家庭收支)
        ===================================================================== -->
   <div id="modal-transaction" class="fixed inset-0 z-40 hidden flex-col justify-end modal-backdrop">
     <div class="mx-auto w-full max-w-md rounded-t-[28px] bg-white px-5 pt-4 shadow-2xl bottom-sheet max-h-[92vh] overflow-y-auto">
@@ -549,7 +517,7 @@
 
       <!-- 常用模板一鍵帶入橫向列 -->
       <div class="mb-3">
-        <div class="text-[11px] font-semibold text-slate-400 mb-1.5">⚡ 點擊常用模板 1 秒帶入：</div>
+        <div class="text-[11px] font-semibold text-slate-400 mb-1.5">常用模板快速帶入：</div>
         <div id="modal-quick-templates" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
           <!-- JS 動態渲染 -->
         </div>
@@ -561,10 +529,10 @@
         <!-- 支出 / 收入 切換器 -->
         <div class="grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
           <button type="button" data-tx-type="expense" class="tx-type-btn rounded-xl py-2 text-xs font-extrabold bg-white text-slate-900 shadow-sm transition">
-            💸 支出 (Expense)
+            支出 (Expense)
           </button>
           <button type="button" data-tx-type="income" class="tx-type-btn rounded-xl py-2 text-xs font-extrabold text-slate-500 transition">
-            💰 收入 (Income)
+            收入 (Income)
           </button>
         </div>
 
@@ -572,27 +540,19 @@
         <div class="grid grid-cols-5 gap-2.5">
           <div class="col-span-3">
             <label class="block text-[11px] font-bold text-slate-500 mb-1">金額 (NT$)</label>
-            <input id="tx-amount" type="number" inputmode="decimal" required min="1" placeholder="0" class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xl font-extrabold text-slate-900 tabular-nums focus:bg-white focus:border-indigo-500 focus:outline-none" />
+            <input id="tx-amount" type="number" inputmode="decimal" required min="1" placeholder="0" class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xl font-extrabold text-slate-900 tabular-nums focus:bg-white focus:border-indigo-900 focus:outline-none" />
           </div>
           <div class="col-span-2">
             <label class="block text-[11px] font-bold text-slate-500 mb-1">日期</label>
-            <input id="tx-date" type="date" required class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-2.5 py-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none" />
+            <input id="tx-date" type="date" required class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-2.5 py-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
           </div>
         </div>
 
-        <!-- 付款人 / 成員選擇 (Willie / Christine / 共同) -->
-        <div>
-          <label class="block text-[11px] font-bold text-slate-500 mb-1.5">付款人 / 歸屬成員</label>
-          <div id="tx-member-pills" class="flex flex-wrap gap-2">
-            <!-- JS 動態渲染 -->
-          </div>
-        </div>
-
-        <!-- 主分類選擇網格 -->
+        <!-- 主分類選擇網格 (單色圖示) -->
         <div>
           <div class="flex items-center justify-between mb-1.5">
             <label class="text-[11px] font-bold text-slate-500">主分類</label>
-            <button id="btn-modal-jump-cat" type="button" class="text-[11px] font-semibold text-indigo-600">＋自訂分類</button>
+            <button id="btn-modal-jump-cat" type="button" class="text-[11px] font-semibold text-slate-500 hover:text-slate-900">＋自訂分類</button>
           </div>
           <div id="tx-category-grid" class="grid grid-cols-4 gap-2">
             <!-- JS 動態渲染 -->
@@ -601,7 +561,7 @@
 
         <!-- 子分類膠囊選擇 -->
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 mb-1.5">子分類（點擊選擇或直接新增）</label>
+          <label class="block text-[11px] font-bold text-slate-500 mb-1.5">子分類</label>
           <div id="tx-subcategory-pills" class="flex flex-wrap gap-1.5">
             <!-- JS 動態渲染 -->
           </div>
@@ -609,17 +569,17 @@
 
         <!-- 備註輸入 -->
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 mb-1">備註說明（支援關鍵字搜尋）</label>
-          <input id="tx-note" type="text" placeholder="例如：好市多採買、晚餐約會、社區管理費..." class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:bg-white focus:border-indigo-500 focus:outline-none" />
+          <label class="block text-[11px] font-bold text-slate-500 mb-1">備註說明</label>
+          <input id="tx-note" type="text" placeholder="例如：好市多採買、晚餐、社區管理費..." class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
         </div>
 
         <!-- 儲存與刪除按鈕 -->
         <div class="flex gap-2 pt-2">
-          <button id="btn-delete-tx" type="button" class="hidden rounded-2xl bg-rose-50 text-rose-600 px-4 py-3 text-xs font-extrabold hover:bg-rose-100">
+          <button id="btn-delete-tx" type="button" class="hidden rounded-2xl bg-slate-100 text-rose-600 px-4 py-3 text-xs font-extrabold hover:bg-rose-50">
             刪除
           </button>
-          <button type="submit" class="flex-1 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 text-sm font-extrabold shadow-lg shadow-indigo-500/30 active:scale-98 transition">
-            儲存並同步至 Google Sheet
+          <button type="submit" class="flex-1 rounded-2xl bg-indigo-950 text-white py-3 text-sm font-extrabold shadow-md active:scale-98 transition">
+            儲存收支紀錄
           </button>
         </div>
       </form>
@@ -627,7 +587,7 @@
   </div>
 
   <!-- =====================================================================
-       🏷️ 新增自訂主分類 Modal
+       新增自訂主分類 Modal (單色圖示選擇器)
        ===================================================================== -->
   <div id="modal-category" class="fixed inset-0 z-40 hidden flex-col justify-end modal-backdrop">
     <div class="mx-auto w-full max-w-md rounded-t-[28px] bg-white px-5 pt-4 shadow-2xl bottom-sheet">
@@ -640,24 +600,19 @@
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">收支類型</label>
             <select id="cat-type" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold">
-              <option value="expense">💸 支出分類</option>
-              <option value="income">💰 收入分類</option>
+              <option value="expense">支出分類</option>
+              <option value="income">收入分類</option>
             </select>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">主分類名稱</label>
-            <input id="cat-name" type="text" required placeholder="例如：育兒寵物" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold" />
+            <input id="cat-name" type="text" required placeholder="例如：育兒生活" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs font-bold" />
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">選擇代表圖示</label>
-          <div id="cat-icon-picker" class="flex flex-wrap gap-1.5"></div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1">選擇 Percento 佔比條顏色</label>
-          <div id="cat-color-picker" class="flex flex-wrap gap-2"></div>
+          <label class="block text-xs font-bold text-slate-600 mb-1.5">選擇單色圖示</label>
+          <div id="cat-icon-picker" class="grid grid-cols-7 gap-2"></div>
         </div>
 
         <div>
@@ -665,7 +620,7 @@
           <input id="cat-subcategories" type="text" placeholder="例如：奶粉尿布, 托嬰學費, 玩具童裝" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-xs" />
         </div>
 
-        <button type="submit" class="w-full rounded-2xl bg-indigo-600 text-white py-3 text-sm font-extrabold shadow-md">
+        <button type="submit" class="w-full rounded-2xl bg-indigo-950 text-white py-3 text-sm font-extrabold shadow-md">
           儲存自訂分類
         </button>
       </form>
@@ -673,7 +628,7 @@
   </div>
 
   <!-- =====================================================================
-       ⚡ 新增固定收支 / 常用模板 Modal
+       新增固定收支 / 常用模板 Modal
        ===================================================================== -->
   <div id="modal-template" class="fixed inset-0 z-40 hidden flex-col justify-end modal-backdrop">
     <div class="mx-auto w-full max-w-md rounded-t-[28px] bg-white px-5 pt-4 shadow-2xl bottom-sheet">
@@ -693,7 +648,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">類型</label>
             <select id="tpl-type" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-2.5 py-2 text-xs font-bold">
@@ -704,10 +659,6 @@
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1">主分類</label>
             <select id="tpl-category" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-2.5 py-2 text-xs font-bold"></select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-600 mb-1">成員</label>
-            <select id="tpl-member" class="w-full rounded-xl bg-slate-100 border border-slate-200 px-2.5 py-2 text-xs font-bold"></select>
           </div>
         </div>
 
@@ -723,11 +674,11 @@
         </div>
 
         <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 pt-1">
-          <input id="tpl-is-fixed" type="checkbox" checked class="rounded text-indigo-600" />
+          <input id="tpl-is-fixed" type="checkbox" checked class="rounded text-indigo-950" />
           <span>屬於「每月固定收支」（支援月初一鍵批次入帳）</span>
         </label>
 
-        <button type="submit" class="w-full rounded-2xl bg-indigo-600 text-white py-3 text-sm font-extrabold shadow-md">
+        <button type="submit" class="w-full rounded-2xl bg-indigo-950 text-white py-3 text-sm font-extrabold shadow-md">
           儲存模板
         </button>
       </form>

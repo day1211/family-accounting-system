@@ -6,12 +6,12 @@ import {
 } from './defaultData.js';
 
 const STORAGE_KEYS = {
-  TRANSACTIONS: 'wc_fas_transactions_v1',
-  CATEGORIES: 'wc_fas_categories_v1',
-  MEMBERS: 'wc_fas_members_v1',
-  TEMPLATES: 'wc_fas_templates_v1',
-  SETTINGS: 'wc_fas_settings_v1',
-  PENDING_QUEUE: 'wc_fas_pending_queue_v1'
+  TRANSACTIONS: 'wc_fas_transactions_v2',
+  CATEGORIES: 'wc_fas_categories_v2',
+  MEMBERS: 'wc_fas_members_v2',
+  TEMPLATES: 'wc_fas_templates_v2',
+  SETTINGS: 'wc_fas_settings_v2',
+  PENDING_QUEUE: 'wc_fas_pending_queue_v2'
 };
 
 const DEFAULT_SETTINGS = {
@@ -52,6 +52,12 @@ export const Storage = {
     if (!saved || !Array.isArray(saved) || saved.length === 0) {
       localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(DEFAULT_MEMBERS));
       return [...DEFAULT_MEMBERS];
+    }
+    // 確保移除舊版可能殘留的「共同」
+    const filtered = saved.filter((m) => m.name !== '共同');
+    if (filtered.length !== saved.length) {
+      localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(filtered));
+      return filtered;
     }
     return saved;
   },
@@ -112,14 +118,10 @@ export const Storage = {
     localStorage.setItem(STORAGE_KEYS.PENDING_QUEUE, JSON.stringify(queue));
   },
 
-  /**
-   * 產生跨手機移轉碼 (Migration Code) 與 Magic Link
-   * 包含 Google Apps Script 網址、家庭通行碼、預設成員、預算等連線資訊
-   */
   generateMigrationCode(targetMember = '') {
     const settings = this.getSettings();
     const payload = {
-      v: 1,
+      v: 2,
       u: settings.gasUrl || '',
       p: settings.passcode || '',
       m: targetMember || settings.defaultMember || 'Willie',
@@ -141,15 +143,11 @@ export const Storage = {
     return url.toString();
   },
 
-  /**
-   * 解析並套用跨手機移轉碼 (Migration Code)
-   */
   applyMigrationCode(rawInput) {
     if (!rawInput || typeof rawInput !== 'string') {
       throw new Error('請輸入有效的換機移轉碼');
     }
     let clean = rawInput.trim();
-    // 支援直接貼上完整網址或 FAS1: 開頭的移轉碼
     if (clean.includes('setup=')) {
       try {
         const parsedUrl = new URL(clean);
@@ -182,12 +180,9 @@ export const Storage = {
     return updated;
   },
 
-  /**
-   * 完整匯出 JSON 備份（支援離線換機或手動備份）
-   */
   exportFullBackupJson() {
     const data = {
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       settings: this.getSettings(),
       members: this.getMembers(),

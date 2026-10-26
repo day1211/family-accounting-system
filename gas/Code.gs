@@ -2,20 +2,8 @@
  * ============================================================================
  * W&C 家庭記帳本 - Google Apps Script (GAS) 雲端同步後端
  * ============================================================================
- * 【安裝與部署步驟（只需 2 分鐘）】
- * 1. 打開你的 Google Sheet「家庭總帳本」（或新建一份 Google 試算表）
- * 2. 點擊上方選單「擴充功能 (Extensions)」>「Apps Script」
- * 3. 將本檔案所有內容貼上取代原本的程式碼，並修改下方 FAMILY_PASSCODE 為你們夫妻專屬的通行碼
- * 4. 點擊右上角「部署 (Deploy)」>「新增部署作業 (New deployment)」
- *    - 選取類型：「網頁應用程式 (Web app)」
- *    - 執行身分：「我 (Me)」
- *    - 誰可以存取：「所有人 (Anyone)」（放心！所有請求都會經過下方 FAMILY_PASSCODE 嚴格驗證）
- * 5. 複製產生的「網頁應用程式網址 (https://script.google.com/macros/s/.../exec)」
- *    貼到手機 App 的「雲端同步設定」即可！
- * ============================================================================
  */
 
-// 🔐 請修改為你與 Christine 專屬的家庭通行碼（建議 8 碼以上英數組合）
 const DEFAULT_FAMILY_PASSCODE = 'WC-Family-2026';
 
 const SHEET_NAMES = {
@@ -24,14 +12,11 @@ const SHEET_NAMES = {
   CONFIG: 'App_Config'
 };
 
-/**
- * 在 Google Sheet 上方新增專屬選單，方便一鍵初始化或更新月度總帳本報表
- */
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🏡 W&C 家庭記帳本')
-    .addItem('✨ 初始化 / 修復資料表與月度總帳本', 'setupAllSheets')
-    .addItem('🔐 設定家庭通行碼 (Passcode)', 'promptPasscode')
+    .createMenu('W&C 家庭記帳本')
+    .addItem('初始化 / 修復資料表與月度總帳本', 'setupAllSheets')
+    .addItem('設定家庭通行碼 (Passcode)', 'promptPasscode')
     .addToUi();
 }
 
@@ -44,7 +29,7 @@ function promptPasscode() {
   const ui = SpreadsheetApp.getUi();
   const current = getExpectedPasscode();
   const response = ui.prompt(
-    '🔐 設定家庭存取通行碼',
+    '設定家庭存取通行碼',
     `目前通行碼為：「${current}」\n請輸入新的家庭通行碼（輸入後請同步在手機 App 更新）：`,
     ui.ButtonSet.OK_CANCEL
   );
@@ -52,12 +37,12 @@ function promptPasscode() {
     const val = response.getResponseText().trim();
     if (val) {
       PropertiesService.getScriptProperties().setProperty('FAMILY_PASSCODE', val);
-      ui.alert('✅ 家庭通行碼已更新成功！');
+      ui.alert('家庭通行碼已更新成功！');
     }
   }
 }
 
-function doGet(e) {
+function doGet() {
   return jsonResponse({
     ok: true,
     service: 'W&C Family Accounting System API',
@@ -80,7 +65,7 @@ function doPost(e) {
     if (expectedPasscode && body.passcode !== expectedPasscode) {
       return jsonResponse({
         ok: false,
-        error: '家庭通行碼 (Passcode) 驗證失敗，請確認設定是否正確'
+        error: '家庭通行碼驗證失敗，請確認設定是否正確'
       });
     }
 
@@ -134,13 +119,12 @@ function setupAllSheets() {
       'Category',
       'Subcategory',
       'Amount',
-      'Member',
       'Note',
       'CreatedAt'
     ];
     txSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     txSheet.getRange(1, 1, 1, headers.length)
-      .setBackground('#4F46E5')
+      .setBackground('#1E1B4B')
       .setFontColor('#FFFFFF')
       .setFontWeight('bold');
     txSheet.setFrozenRows(1);
@@ -150,11 +134,10 @@ function setupAllSheets() {
     txSheet.setColumnWidth(5, 110);
     txSheet.setColumnWidth(6, 110);
     txSheet.setColumnWidth(7, 100);
-    txSheet.setColumnWidth(8, 100);
-    txSheet.setColumnWidth(9, 240);
+    txSheet.setColumnWidth(8, 260);
   }
 
-  // 2. App_Config 系統設定表（儲存自訂分類、子分類、成員、常用模板 JSON）
+  // 2. App_Config 系統設定表
   let cfgSheet = ss.getSheetByName(SHEET_NAMES.CONFIG);
   if (!cfgSheet) {
     cfgSheet = ss.insertSheet(SHEET_NAMES.CONFIG);
@@ -173,37 +156,35 @@ function setupAllSheets() {
     const now = new Date();
     const ym = Utilities.formatDate(now, Session.getScriptTimeZone() || 'Asia/Taipei', 'yyyy-MM');
 
-    sumSheet.getRange('A1').setValue('🏡 W&C 家庭總帳本 - 月度自動彙總表');
-    sumSheet.getRange('A1').setFontSize(14).setFontWeight('bold').setFontColor('#4F46E5');
+    sumSheet.getRange('A1').setValue('W&C 家庭總帳本 - 月度自動彙總表');
+    sumSheet.getRange('A1').setFontSize(14).setFontWeight('bold').setFontColor('#1E1B4B');
     sumSheet.getRange('A2').setValue('查詢月份 (YYYY-MM)：');
-    sumSheet.getRange('B2').setValue(ym).setBackground('#FEF3C7').setFontWeight('bold');
+    sumSheet.getRange('B2').setValue(ym).setBackground('#EEF2FF').setFontWeight('bold');
 
-    sumSheet.getRange('A4:C4').setValues([['收支指標 / 成員', '當月金額', '公式說明']])
-      .setBackground('#4F46E5').setFontColor('#FFFFFF').setFontWeight('bold');
+    sumSheet.getRange('A4:C4').setValues([['收支指標', '當月金額', '公式說明']])
+      .setBackground('#1E1B4B').setFontColor('#FFFFFF').setFontWeight('bold');
 
-    sumSheet.getRange('A5:C9').setValues([
-      ['當月總收入', `=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "income")`, '自動統計當月所有收入'],
-      ['當月總支出', `=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "expense")`, '自動統計當月所有支出'],
-      ['當月淨結餘', `=B5-B6`, '總收入 - 總支出'],
-      ['Willie 支付總額', `=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "expense", Transactions!H:H, "Willie")`, 'Willie 經手之支出'],
-      ['Christine 支付總額', `=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "expense", Transactions!H:H, "Christine")`, 'Christine 經手之支出']
+    sumSheet.getRange('A5:C7').setValues([
+      ['當月家庭總收入', '=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "income")', '自動統計當月所有收入'],
+      ['當月家庭總支出', '=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "expense")', '自動統計當月所有支出'],
+      ['當月淨結餘', '=B5-B6', '總收入 - 總支出']
     ]);
 
-    sumSheet.getRange('A11:C11').setValues([['支出主分類', '當月支出金額', '佔總支出比例']])
+    sumSheet.getRange('A9:C9').setValues([['支出主分類', '當月支出金額', '佔總支出比例']])
       .setBackground('#312E81').setFontColor('#FFFFFF').setFontWeight('bold');
 
     const defaultExpCats = ['餐飲食品', '居家生活', '交通出行', '購物消費', '休閒娛樂', '醫療保健', '進修與其他'];
     const catRows = defaultExpCats.map((cat, idx) => {
-      const rowNum = 12 + idx;
+      const rowNum = 10 + idx;
       return [
         cat,
         `=SUMIFS(Transactions!G:G, Transactions!C:C, $B$2, Transactions!D:D, "expense", Transactions!E:E, A${rowNum})`,
         `=IF($B$6>0, B${rowNum}/$B$6, 0)`
       ];
     });
-    sumSheet.getRange(12, 1, catRows.length, 3).setValues(catRows);
-    sumSheet.getRange(12, 3, catRows.length, 1).setNumberFormat('0.0%');
-    sumSheet.getRange('B5:B18').setNumberFormat('$#,##0');
+    sumSheet.getRange(10, 1, catRows.length, 3).setValues(catRows);
+    sumSheet.getRange(10, 3, catRows.length, 1).setNumberFormat('0.0%');
+    sumSheet.getRange('B5:B16').setNumberFormat('$#,##0');
     sumSheet.setColumnWidth(1, 160);
     sumSheet.setColumnWidth(2, 140);
     sumSheet.setColumnWidth(3, 220);
@@ -226,7 +207,7 @@ function readAllTransactions() {
   const lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
 
-  const values = sheet.getRange(2, 1, lastRow - 1, 10).getValues();
+  const values = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
   const list = [];
   const tz = Session.getScriptTimeZone() || 'Asia/Taipei';
 
@@ -247,9 +228,8 @@ function readAllTransactions() {
       category: String(row[4] || ''),
       subcategory: String(row[5] || ''),
       amount: Number(row[6]) || 0,
-      member: String(row[7] || 'Willie'),
-      note: String(row[8] || ''),
-      createdAt: String(row[9] || '')
+      note: String(row[7] || ''),
+      createdAt: String(row[8] || '')
     });
   }
   return list;
@@ -335,7 +315,6 @@ function handleUpsertTransaction(tx) {
     tx.category || '',
     tx.subcategory || '',
     Number(tx.amount) || 0,
-    tx.member || 'Willie',
     tx.note || '',
     tx.createdAt || new Date().toISOString()
   ];
@@ -365,12 +344,11 @@ function handleBatchInsertTransactions(txList) {
     tx.category || '',
     tx.subcategory || '',
     Number(tx.amount) || 0,
-    tx.member || 'Willie',
     tx.note || '',
     tx.createdAt || new Date().toISOString()
   ]);
   if (rows.length > 0) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 10).setValues(rows);
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 9).setValues(rows);
   }
   return jsonResponse({ ok: true, count: rows.length });
 }
