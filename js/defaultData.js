@@ -155,6 +155,26 @@ export function generateSampleTransactions() {
 
   return [
     {
+      id: 'tx-1793017881028',
+      date: '2026-10-26',
+      type: 'expense',
+      category: '醫療保健',
+      subcategory: '門診掛號',
+      amount: 300,
+      note: '誠陽',
+      createdAt: '2026-10-26T12:31:21.028Z'
+    },
+    {
+      id: 'tx-1793017528226',
+      date: '2026-10-26',
+      type: 'expense',
+      category: '餐飲食品',
+      subcategory: '日常三餐',
+      amount: 100,
+      note: '',
+      createdAt: '2026-10-26T12:25:28.226Z'
+    },
+    {
       id: 'tx-sample-1',
       date: `${yyyy}-${mm}-05`,
       type: 'income',
