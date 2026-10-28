@@ -205,6 +205,8 @@ function handleApiDispatch(body) {
     return handleBatchInsertTransactions(body.transactions || []);
   } else if (action === 'deleteTransaction') {
     return handleDeleteTransaction(body.id);
+  } else if (action === 'clearAllTransactions') {
+    return handleClearAllTransactions();
   } else if (action === 'saveConfig') {
     return handleSaveConfig(body);
   } else if (action === 'ensureAnnualSheet') {
@@ -672,16 +674,29 @@ function handleDeleteTransaction(id) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_NAMES.TRANSACTIONS);
   const lastRow = sheet.getLastRow();
+  let deleted = false;
   if (lastRow > 1) {
     const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
     for (let i = ids.length - 1; i >= 0; i--) {
       if (String(ids[i][0]) === String(id)) {
         sheet.deleteRow(i + 2);
-        return jsonResponse({ ok: true, deleted: true, id });
+        deleted = true;
       }
     }
   }
-  return jsonResponse({ ok: true, deleted: false, id });
+  return jsonResponse({ ok: true, deleted, id });
+}
+
+function handleClearAllTransactions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.TRANSACTIONS);
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      sheet.deleteRows(2, lastRow - 1);
+    }
+  }
+  return jsonResponse({ ok: true, cleared: true });
 }
 
 function handleSaveConfig(body) {

@@ -2,8 +2,15 @@ import {
   DEFAULT_MEMBERS,
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
-  generateSampleTransactions
-} from './defaultData.js?v=14';
+  LEGACY_TEST_TX_IDS
+} from './defaultData.js?v=15';
+
+const LEGACY_TEST_ID_SET = new Set(LEGACY_TEST_TX_IDS);
+function isLegacyTestTx(tx) {
+  if (!tx || !tx.id) return true;
+  const idStr = String(tx.id);
+  return idStr.startsWith('tx-sample-') || LEGACY_TEST_ID_SET.has(idStr);
+}
 
 // 使用永久穩定的 Storage Key，確保版本更新時絕對不會遺失已綁定的 Face ID Credential ID
 const STORAGE_KEYS = {
@@ -167,31 +174,24 @@ export const Storage = {
   },
 
   getTransactions() {
-    for (const key of [
-      STORAGE_KEYS.TRANSACTIONS,
-      'wc_fas_transactions_v10',
-      'wc_fas_transactions_v9',
-      'wc_fas_transactions_v8',
-      'wc_fas_transactions_v7',
-      'wc_fas_transactions_v6',
-      'wc_fas_transactions_v5'
-    ]) {
-      const saved = safeParse(localStorage.getItem(key), null);
-      if (saved && Array.isArray(saved) && saved.length > 0) {
-        if (key !== STORAGE_KEYS.TRANSACTIONS) {
-          localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(saved));
-        }
-        return saved;
+    const saved = safeParse(localStorage.getItem(STORAGE_KEYS.TRANSACTIONS), null);
+    if (saved && Array.isArray(saved)) {
+      const cleaned = saved.filter((tx) => !isLegacyTestTx(tx));
+      if (cleaned.length !== saved.length) {
+        localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(cleaned));
       }
+      return cleaned;
     }
-    const initial = isLocalDev ? generateSampleTransactions() : [];
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(initial));
-    return initial;
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify([]));
+    return [];
   },
 
   saveTransactions(transactions) {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
-    return transactions;
+    const cleaned = (Array.isArray(transactions) ? transactions : []).filter(
+      (tx) => !isLegacyTestTx(tx)
+    );
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(cleaned));
+    return cleaned;
   },
 
   getDeletedIds() {

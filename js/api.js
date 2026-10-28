@@ -1,10 +1,11 @@
-import { Storage } from './storage.js?v=14';
+import { Storage } from './storage.js?v=15';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_MEMBERS,
   DEFAULT_TEMPLATES,
+  LEGACY_TEST_TX_IDS,
   generateSampleTransactions
-} from './defaultData.js?v=14';
+} from './defaultData.js?v=15';
 
 let isSyncingNow = false;
 let cachedIdToken = '';
@@ -16,7 +17,7 @@ const FS_KEY = [
 ].join('');
 const FS_PROJECT = 'daily-task-app-b3903';
 const FS_DOC_PATH =
-  'artifacts/task-app-v4/public/data/app/wc_family_accounting';
+  'artifacts/task-app-v4/public/data/app/wc_family_accounting_v15';
 
 async function getZeroRedirectToken() {
   const now = Date.now();
@@ -253,6 +254,7 @@ export const Api = {
           ? mirrorRes.deletedIds
           : [];
       const allDeletedSet = new Set([
+        ...LEGACY_TEST_TX_IDS.map(String),
         ...localDeletedIds.map(String),
         ...mirrorDeletedIds.map(String)
       ]);
