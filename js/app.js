@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=15';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=15';
-import { Storage } from './storage.js?v=15';
-import { Auth } from './auth.js?v=15';
-import { Api } from './api.js?v=15';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=16';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=16';
+import { Storage } from './storage.js?v=16';
+import { Auth } from './auth.js?v=16';
+import { Api } from './api.js?v=16';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -757,8 +757,8 @@ function renderManageView() {
           .map(
             (sub) => `
           <span class="inline-flex items-center gap-1 rounded-full bg-white border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
-            ${sub}
-            <button type="button" data-del-sub="${cat.id}__${sub}" class="text-slate-400 hover:text-rose-600 ml-0.5">×</button>
+            <button type="button" data-rename-sub="${cat.id}__${sub}" class="hover:text-indigo-700" title="點擊修改子分類名稱">${sub}</button>
+            <button type="button" data-del-sub="${cat.id}__${sub}" class="text-slate-400 hover:text-rose-600 ml-0.5" title="刪除子分類">×</button>
           </span>
         `
           )
@@ -771,6 +771,58 @@ function renderManageView() {
   `
     )
     .join('');
+
+  catListEl.querySelectorAll('[data-rename-sub]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const [catId, oldSub] = btn.getAttribute('data-rename-sub').split('__');
+      const cats = Storage.getCategories();
+      const target = cats.find((c) => c.id === catId);
+      if (!target) return;
+      const newSubRaw = window.prompt(
+        `修改「${target.name}」下的子分類名稱（既有記帳也會自動同步更新）：`,
+        oldSub
+      );
+      if (!newSubRaw || !newSubRaw.trim() || newSubRaw.trim() === oldSub) return;
+      const newSub = newSubRaw.trim();
+
+      target.subcategories = target.subcategories.map((s) =>
+        s === oldSub ? newSub : s
+      );
+      Storage.saveCategories(cats);
+
+      const allTx = Storage.getTransactions();
+      const updatedTxs = [];
+      const nextTx = allTx.map((tx) => {
+        if (tx.category === target.name && tx.subcategory === oldSub) {
+          const updated = {
+            ...tx,
+            subcategory: newSub,
+            createdAt: new Date().toISOString()
+          };
+          updatedTxs.push(updated);
+          return updated;
+        }
+        return tx;
+      });
+      if (updatedTxs.length > 0) {
+        Storage.saveTransactions(nextTx);
+        for (const utx of updatedTxs) {
+          await Api.upsertTransaction(utx);
+        }
+      }
+
+      const allTpls = Storage.getTemplates().map((tpl) =>
+        tpl.category === target.name && tpl.subcategory === oldSub
+          ? { ...tpl, subcategory: newSub }
+          : tpl
+      );
+      Storage.saveTemplates(allTpls);
+
+      renderAll();
+      await Api.syncSettingsToCloud();
+      showToast(`已將子分類「${oldSub}」改為「${newSub}」`);
+    });
+  });
 
   catListEl.querySelectorAll('[data-add-sub]').forEach((btn) => {
     btn.addEventListener('click', async () => {

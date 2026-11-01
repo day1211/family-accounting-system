@@ -2,8 +2,10 @@ import {
   DEFAULT_MEMBERS,
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
-  LEGACY_TEST_TX_IDS
-} from './defaultData.js?v=15';
+  LEGACY_TEST_TX_IDS,
+  migrateCategoryFields,
+  upgradeCategoriesToV16
+} from './defaultData.js?v=16';
 
 const LEGACY_TEST_ID_SET = new Set(LEGACY_TEST_TX_IDS);
 function isLegacyTestTx(tx) {
@@ -151,7 +153,11 @@ export const Storage = {
       localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(DEFAULT_CATEGORIES));
       return JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
     }
-    return saved;
+    const upgraded = upgradeCategoriesToV16(saved);
+    if (JSON.stringify(upgraded) !== JSON.stringify(saved)) {
+      localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(upgraded));
+    }
+    return upgraded;
   },
 
   saveCategories(categories) {
@@ -165,19 +171,28 @@ export const Storage = {
       localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(DEFAULT_TEMPLATES));
       return JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
     }
-    return saved;
+    const migrated = saved.map((tpl) => migrateCategoryFields(tpl));
+    if (JSON.stringify(migrated) !== JSON.stringify(saved)) {
+      localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(migrated));
+    }
+    return migrated;
   },
 
   saveTemplates(templates) {
-    localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(templates));
-    return templates;
+    const migrated = (Array.isArray(templates) ? templates : []).map((tpl) =>
+      migrateCategoryFields(tpl)
+    );
+    localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(migrated));
+    return migrated;
   },
 
   getTransactions() {
     const saved = safeParse(localStorage.getItem(STORAGE_KEYS.TRANSACTIONS), null);
     if (saved && Array.isArray(saved)) {
-      const cleaned = saved.filter((tx) => !isLegacyTestTx(tx));
-      if (cleaned.length !== saved.length) {
+      const cleaned = saved
+        .filter((tx) => !isLegacyTestTx(tx))
+        .map((tx) => migrateCategoryFields(tx));
+      if (JSON.stringify(cleaned) !== JSON.stringify(saved)) {
         localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(cleaned));
       }
       return cleaned;
@@ -187,9 +202,9 @@ export const Storage = {
   },
 
   saveTransactions(transactions) {
-    const cleaned = (Array.isArray(transactions) ? transactions : []).filter(
-      (tx) => !isLegacyTestTx(tx)
-    );
+    const cleaned = (Array.isArray(transactions) ? transactions : [])
+      .filter((tx) => !isLegacyTestTx(tx))
+      .map((tx) => migrateCategoryFields(tx));
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(cleaned));
     return cleaned;
   },

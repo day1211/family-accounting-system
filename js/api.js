@@ -1,11 +1,13 @@
-import { Storage } from './storage.js?v=15';
+import { Storage } from './storage.js?v=16';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_MEMBERS,
   DEFAULT_TEMPLATES,
   LEGACY_TEST_TX_IDS,
-  generateSampleTransactions
-} from './defaultData.js?v=15';
+  generateSampleTransactions,
+  migrateCategoryFields,
+  upgradeCategoriesToV16
+} from './defaultData.js?v=16';
 
 let isSyncingNow = false;
 let cachedIdToken = '';
@@ -278,10 +280,11 @@ export const Api = {
           ? mirrorRes.transactions
           : [];
 
-      [...sheetTxs, ...mirrorTxs].forEach((tx) => {
-        if (!tx || !tx.id) return;
-        const idStr = String(tx.id);
-        if (allDeletedSet.has(idStr)) return;
+      [...sheetTxs, ...mirrorTxs].forEach((rawTx) => {
+        if (!rawTx || !rawTx.id) return;
+        const idStr = String(rawTx.id);
+        if (allDeletedSet.has(idStr) || idStr.startsWith('tx-sample-')) return;
+        const tx = migrateCategoryFields(rawTx);
         const existing = cloudMap.get(idStr);
         if (!existing) {
           cloudMap.set(idStr, tx);
@@ -342,13 +345,13 @@ export const Api = {
 
       const primaryRes = sheetRes || mirrorRes;
       if (Array.isArray(primaryRes.categories) && primaryRes.categories.length > 0) {
-        Storage.saveCategories(primaryRes.categories);
+        Storage.saveCategories(upgradeCategoriesToV16(primaryRes.categories));
       }
       if (Array.isArray(primaryRes.members) && primaryRes.members.length > 0) {
         Storage.saveMembers(primaryRes.members);
       }
       if (Array.isArray(primaryRes.templates) && primaryRes.templates.length > 0) {
-        Storage.saveTemplates(primaryRes.templates);
+        Storage.saveTemplates(primaryRes.templates.map((t) => migrateCategoryFields(t)));
       }
 
       // 更新零 302 轉址雲端鏡像，確保 iPhone 桌面捷徑與所有瀏覽器即時一致
@@ -451,7 +454,9 @@ export const Api = {
     try {
       await Promise.allSettled([
         callGasNoCorsWrite('saveConfig', {
-          members: Storage.getMembers()
+          categories: Storage.getCategories(),
+          members: Storage.getMembers(),
+          templates: Storage.getTemplates()
         }),
         writeZeroRedirectCloudMirror({
           ok: true,

@@ -8,8 +8,71 @@ const DEFAULT_FAMILY_PASSCODE = 'WC-Family-2026';
 
 const SHEET_NAMES = {
   TRANSACTIONS: 'Transactions',
+  CATEGORIES_TABLE: '分類設定',
   CONFIG: 'App_Config'
 };
+
+const DEFAULT_V16_CATEGORIES = [
+  { id: 'cat-food', type: 'expense', name: '餐飲食品', icon: 'utensils', subcategories: ['外食', '食物'] },
+  { id: 'cat-home', type: 'expense', name: '居家生活', icon: 'home', subcategories: ['日常用品', '日常服務', '房貸', '管理費'] },
+  { id: 'cat-transport', type: 'expense', name: '交通出行', icon: 'car', subcategories: ['加油/充電', '停車過路費', '高鐵/捷運', '計程車/Uber', '保養與保險'] },
+  { id: 'cat-shopping', type: 'expense', name: '購物消費', icon: 'shopping', subcategories: ['服飾鞋包', '3C數位', '美妝保養', '居家好物', '其他'] },
+  { id: 'cat-entertainment', type: 'expense', name: '休閒娛樂', icon: 'entertainment', subcategories: ['國內外旅遊', '朋友聚會', '展覽活動'] },
+  { id: 'cat-medical', type: 'expense', name: '醫療保健', icon: 'medical', subcategories: ['門診掛號', '藥品保健', '健康檢查'] },
+  { id: 'cat-other-exp', type: 'expense', name: '發展進修', icon: 'education', subcategories: ['課程學習', '運動健身'] },
+  { id: 'cat-utilities', type: 'expense', name: '公用事業', icon: 'wrench', subcategories: ['水費', '電費', '瓦斯費', '網路', '行動電話', '其他'] },
+  { id: 'cat-subscription', type: 'expense', name: '訂閱服務', icon: 'laptop', subcategories: ['應用訂閱', '信用卡年費'] },
+  { id: 'cat-insurance', type: 'expense', name: '保險', icon: 'landmark', subcategories: ['勞健保', '保險'] },
+  { id: 'cat-tax', type: 'expense', name: '萬萬稅', icon: 'receipt', subcategories: ['所得稅', '罰單'] },
+  { id: 'cat-social', type: 'expense', name: '人際支出', icon: 'coffee', subcategories: ['人際支出'] },
+  { id: 'cat-filial', type: 'expense', name: '孝親支出', icon: 'gift', subcategories: ['孝親支出'] },
+  { id: 'cat-donation', type: 'expense', name: '捐獻', icon: 'tag', subcategories: ['捐獻'] },
+  { id: 'cat-salary', type: 'income', name: '薪資獎金', icon: 'wallet', subcategories: ['每月本薪', '績效獎金', '年終分紅', '加班津貼'] },
+  { id: 'cat-invest', type: 'income', name: '投資理財', icon: 'trending', subcategories: ['股票股息', '債券配息', '資本利得', '定存利息'] },
+  { id: 'cat-other-inc', type: 'income', name: '其他收入', icon: 'gift', subcategories: ['二手拍賣', '退稅/補助', '禮金回饋', '其他收入'] }
+];
+
+const DEFAULT_V16_TEMPLATES = [
+  { id: 'tpl-1', name: '每月房貸扣款', type: 'expense', category: '居家生活', subcategory: '房貸', amount: 38000, note: '每月固定房貸', isMonthlyFixed: true, dayOfMonth: 5 },
+  { id: 'tpl-2', name: '社區管理費', type: 'expense', category: '居家生活', subcategory: '管理費', amount: 3500, note: '社區物業管理費', isMonthlyFixed: true, dayOfMonth: 10 },
+  { id: 'tpl-3', name: '水電瓦斯與光纖網路', type: 'expense', category: '公用事業', subcategory: '網路', amount: 2200, note: '家用光纖與水電帳單', isMonthlyFixed: true, dayOfMonth: 15 },
+  { id: 'tpl-4', name: 'Netflix + YouTube 家庭訂閱', type: 'expense', category: '訂閱服務', subcategory: '應用訂閱', amount: 690, note: '家庭共享串流平台', isMonthlyFixed: true, dayOfMonth: 18 },
+  { id: 'tpl-5', name: '好市多 / 超市生鮮採買', type: 'expense', category: '餐飲食品', subcategory: '食物', amount: 2500, note: '週末家庭食材採買', isMonthlyFixed: false },
+  { id: 'tpl-6', name: '汽車加油', type: 'expense', category: '交通出行', subcategory: '加油/充電', amount: 1500, note: '中油自助加油', isMonthlyFixed: false }
+];
+
+function migrateGasCategoryPair(rawCat, rawSub) {
+  let cat = String(rawCat || '').trim();
+  let sub = String(rawSub || '').trim();
+
+  if (cat === '餐飲食品') {
+    if (sub === '日常三餐' || sub === '餐廳外食') sub = '外食';
+    else if (sub === '生鮮買菜' || sub === '咖啡飲料' || sub === '甜點零食') sub = '食物';
+  } else if (cat === '居家生活') {
+    if (sub === '日用雜貨') sub = '日常用品';
+    else if (sub === '家電修繕') sub = '日常服務';
+    else if (sub === '房貸/房租') sub = '房貸';
+    else if (sub === '水電瓦斯') { cat = '公用事業'; sub = '其他'; }
+    else if (sub === '網路電信') { cat = '公用事業'; sub = '網路'; }
+  } else if (cat === '醫療保健') {
+    if (sub === '牙科檢查') sub = '健康檢查';
+    else if (sub === '醫療保險') { cat = '保險'; sub = '保險'; }
+  } else if (cat === '購物消費') {
+    if (sub === '禮物採買') sub = '其他';
+  } else if (cat === '休閒娛樂') {
+    if (sub === '影音訂閱') { cat = '訂閱服務'; sub = '應用訂閱'; }
+    else if (sub === '運動健身') { cat = '發展進修'; sub = '運動健身'; }
+  } else if (cat === '進修與其他') {
+    if (sub === '書籍課程') { cat = '發展進修'; sub = '課程學習'; }
+    else if (sub === '運動健身') { cat = '發展進修'; sub = '運動健身'; }
+    else if (sub === '稅金規費') { cat = '萬萬稅'; sub = '所得稅'; }
+    else if (sub === '孝親紅包') { cat = '孝親支出'; sub = '孝親支出'; }
+    else if (sub === '公益捐款') { cat = '捐獻'; sub = '捐獻'; }
+    else { cat = '發展進修'; sub = '課程學習'; }
+  }
+
+  return { category: cat, subcategory: sub };
+}
 
 function onOpen() {
   SpreadsheetApp.getUi()
@@ -207,6 +270,8 @@ function handleApiDispatch(body) {
     return handleDeleteTransaction(body.id);
   } else if (action === 'clearAllTransactions') {
     return handleClearAllTransactions();
+  } else if (action === 'migrateV16') {
+    return handleMigrateV16();
   } else if (action === 'saveConfig') {
     return handleSaveConfig(body);
   } else if (action === 'ensureAnnualSheet') {
@@ -298,22 +363,8 @@ function createOrUpdateAnnualSheet(year) {
     sheet.clear();
   }
 
-  // 讀取使用者自訂分類（若尚無則使用預設分類）
-  const configMap = readConfigMap();
-  const cats = Array.isArray(configMap.categories) && configMap.categories.length > 0
-    ? configMap.categories
-    : [
-        { type: 'income', name: '薪資獎金' },
-        { type: 'income', name: '投資理財' },
-        { type: 'income', name: '其他收入' },
-        { type: 'expense', name: '餐飲食品' },
-        { type: 'expense', name: '居家生活' },
-        { type: 'expense', name: '交通出行' },
-        { type: 'expense', name: '購物消費' },
-        { type: 'expense', name: '休閒娛樂' },
-        { type: 'expense', name: '醫療保健' },
-        { type: 'expense', name: '進修與其他' }
-      ];
+  // 讀取使用者自訂分類（優先從「分類設定」可視化工作表讀取，若無則使用預設分類）
+  const cats = readCategoriesFromSheetOrConfig();
 
   const incomeCats = cats.filter((c) => c.type === 'income').map((c) => c.name);
   const expenseCats = cats.filter((c) => c.type === 'expense').map((c) => c.name);
@@ -584,13 +635,84 @@ function writeConfigKey(key, objValue) {
   sheet.appendRow([key, jsonStr, nowIso]);
 }
 
+function writeCategoriesToTableSheet(categories) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAMES.CATEGORIES_TABLE);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.CATEGORIES_TABLE);
+  } else {
+    sheet.clear();
+  }
+
+  const headers = [
+    '收支類型 (支出/收入)',
+    '主分類名稱',
+    '子分類清單 (請用頓號「、」或逗號「,」分隔，可直接在此修改)',
+    '圖示代碼',
+    '系統ID'
+  ];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers])
+    .setBackground('#1E1B4B')
+    .setFontColor('#FFFFFF')
+    .setFontWeight('bold');
+  sheet.setFrozenRows(1);
+
+  const rows = (categories || DEFAULT_V16_CATEGORIES).map((c, idx) => [
+    c.type === 'income' ? '收入' : '支出',
+    c.name || '',
+    Array.isArray(c.subcategories) ? c.subcategories.join('、') : '',
+    c.icon || 'tag',
+    c.id || `cat-custom-${idx + 1}`
+  ]);
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  sheet.setColumnWidth(1, 130);
+  sheet.setColumnWidth(2, 130);
+  sheet.setColumnWidth(3, 380);
+  sheet.setColumnWidth(4, 100);
+  sheet.setColumnWidth(5, 130);
+}
+
+function readCategoriesFromSheetOrConfig() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_NAMES.CATEGORIES_TABLE);
+  if (sheet && sheet.getLastRow() > 1) {
+    const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+    const list = [];
+    for (let i = 0; i < values.length; i++) {
+      const r = values[i];
+      const name = String(r[1] || '').trim();
+      if (!name) continue;
+      const typeRaw = String(r[0] || '').trim();
+      const type = typeRaw === '收入' || typeRaw.toLowerCase() === 'income' ? 'income' : 'expense';
+      const subRaw = String(r[2] || '').trim();
+      const subcategories = subRaw
+        ? subRaw.split(/[、,，]/).map((s) => s.trim()).filter(Boolean)
+        : [name];
+      const icon = String(r[3] || 'tag').trim() || 'tag';
+      const id = String(r[4] || `cat-${i + 1}`).trim();
+      list.push({ id, type, name, icon, subcategories });
+    }
+    if (list.length > 0) {
+      return list;
+    }
+  }
+
+  const configMap = readConfigMap();
+  if (Array.isArray(configMap.categories) && configMap.categories.length > 0) {
+    return configMap.categories;
+  }
+  return DEFAULT_V16_CATEGORIES;
+}
+
 function handleSyncAll(body) {
   const configMap = readConfigMap();
+  const categories = readCategoriesFromSheetOrConfig();
+  writeConfigKey('categories', categories);
 
-  if (!configMap.categories && Array.isArray(body.localCategories)) {
-    writeConfigKey('categories', body.localCategories);
-    configMap.categories = body.localCategories;
-  }
   if (!configMap.members && Array.isArray(body.localMembers)) {
     writeConfigKey('members', body.localMembers);
     configMap.members = body.localMembers;
@@ -604,9 +726,9 @@ function handleSyncAll(body) {
   return jsonResponse({
     ok: true,
     transactions,
-    categories: configMap.categories || [],
+    categories,
     members: configMap.members || [],
-    templates: configMap.templates || []
+    templates: configMap.templates || DEFAULT_V16_TEMPLATES
   });
 }
 
@@ -700,12 +822,50 @@ function handleClearAllTransactions() {
 }
 
 function handleSaveConfig(body) {
-  if (Array.isArray(body.categories)) {
+  if (Array.isArray(body.categories) && body.categories.length > 0) {
     writeConfigKey('categories', body.categories);
+    writeCategoriesToTableSheet(body.categories);
     // 當自訂分類更新時，自動同步更新當年度 1-12 月總表列項
     createOrUpdateAnnualSheet(new Date().getFullYear());
   }
   if (Array.isArray(body.members)) writeConfigKey('members', body.members);
   if (Array.isArray(body.templates)) writeConfigKey('templates', body.templates);
   return jsonResponse({ ok: true });
+}
+
+function handleMigrateV16() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  writeConfigKey('categories', DEFAULT_V16_CATEGORIES);
+  writeCategoriesToTableSheet(DEFAULT_V16_CATEGORIES);
+  writeConfigKey('templates', DEFAULT_V16_TEMPLATES);
+
+  const txSheet = ss.getSheetByName(SHEET_NAMES.TRANSACTIONS);
+  if (txSheet && txSheet.getLastRow() > 1) {
+    const lastRow = txSheet.getLastRow();
+    const values = txSheet.getRange(2, 1, lastRow - 1, 9).getValues();
+    const testIds = {
+      'tx-1793017528226': true,
+      'tx-1793017881028': true,
+      'tx-nocors-test': true
+    };
+    const keptRows = [];
+    for (let i = 0; i < values.length; i++) {
+      const r = values[i];
+      const id = String(r[0] || '');
+      if (!id || id.indexOf('tx-sample-') === 0 || testIds[id]) {
+        continue;
+      }
+      const migrated = migrateGasCategoryPair(r[4], r[5]);
+      r[4] = migrated.category;
+      r[5] = migrated.subcategory;
+      keptRows.push(r);
+    }
+    txSheet.deleteRows(2, lastRow - 1);
+    if (keptRows.length > 0) {
+      txSheet.getRange(2, 1, keptRows.length, 9).setValues(keptRows);
+    }
+  }
+
+  createOrUpdateAnnualSheet(new Date().getFullYear());
+  return jsonResponse({ ok: true, migrated: 'v16', categoriesCount: DEFAULT_V16_CATEGORIES.length });
 }
