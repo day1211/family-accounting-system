@@ -103,6 +103,19 @@ export const DEFAULT_CATEGORIES = [
     icon: 'tag',
     subcategories: ['捐獻']
   },
+  {
+    id: 'cat-parenting',
+    type: 'expense',
+    name: '育兒',
+    icon: 'baby',
+    subcategories: [
+      '何岱芸學費',
+      '滿滿才藝課',
+      '其他育兒支出',
+      '小荷包才藝課',
+      '何岱恩學費'
+    ]
+  },
   // 收入分類 (Income)
   {
     id: 'cat-salary',
@@ -299,6 +312,57 @@ export function upgradeCategoriesToV16(savedCats) {
       ...JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
       ...customUserCats
     ];
+  }
+
+  // 確保「育兒」分類與其 5 個子項目存在，且不影響其他既有的自訂分類
+  const parentingDefault = {
+    id: 'cat-parenting',
+    type: 'expense',
+    name: '育兒',
+    icon: 'baby',
+    subcategories: [
+      '何岱芸學費',
+      '滿滿才藝課',
+      '其他育兒支出',
+      '小荷包才藝課',
+      '何岱恩學費'
+    ]
+  };
+
+  const existingParenting = savedCats.find(
+    (c) => c && (c.id === 'cat-parenting' || c.name === '育兒')
+  );
+  if (!existingParenting) {
+    const firstIncomeIdx = savedCats.findIndex((c) => c && c.type === 'income');
+    const cloned = JSON.parse(JSON.stringify(savedCats));
+    if (firstIncomeIdx >= 0) {
+      cloned.splice(firstIncomeIdx, 0, parentingDefault);
+    } else {
+      cloned.push(parentingDefault);
+    }
+    return cloned;
+  } else {
+    let changed = false;
+    const subs = Array.isArray(existingParenting.subcategories)
+      ? [...existingParenting.subcategories]
+      : [];
+    parentingDefault.subcategories.forEach((s) => {
+      if (!subs.includes(s)) {
+        subs.push(s);
+        changed = true;
+      }
+    });
+    if (existingParenting.icon !== 'baby') {
+      existingParenting.icon = 'baby';
+      changed = true;
+    }
+    if (changed) {
+      return savedCats.map((c) =>
+        c && (c.id === 'cat-parenting' || c.name === '育兒')
+          ? { ...c, icon: 'baby', subcategories: subs }
+          : c
+      );
+    }
   }
 
   return savedCats;

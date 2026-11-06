@@ -28,14 +28,8 @@
           const keys = await caches.keys();
           for (const k of keys) await caches.delete(k);
         }
-        if (localStorage.getItem('wc_sw_version') !== 'v16') {
-          localStorage.removeItem('wc_fas_transactions_v10');
-          localStorage.removeItem('wc_fas_transactions_v9');
-          localStorage.removeItem('wc_fas_transactions_v8');
-          localStorage.removeItem('wc_fas_transactions_v7');
-          localStorage.removeItem('wc_fas_transactions_v6');
-          localStorage.removeItem('wc_fas_transactions_v5');
-          localStorage.setItem('wc_sw_version', 'v16');
+        if (localStorage.getItem('wc_sw_version') !== 'v17') {
+          localStorage.setItem('wc_sw_version', 'v17');
           window.location.reload();
         }
       } catch (e) {}
@@ -45,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=16" />
+  <link rel="stylesheet" href="./css/styles.css?v=17" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -760,6 +754,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=16"></script>
+  <script type="module" src="./js/app.js?v=17"></script>
 </body>
 </html>

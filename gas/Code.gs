@@ -27,6 +27,7 @@ const DEFAULT_V16_CATEGORIES = [
   { id: 'cat-social', type: 'expense', name: '人際支出', icon: 'coffee', subcategories: ['人際支出'] },
   { id: 'cat-filial', type: 'expense', name: '孝親支出', icon: 'gift', subcategories: ['孝親支出'] },
   { id: 'cat-donation', type: 'expense', name: '捐獻', icon: 'tag', subcategories: ['捐獻'] },
+  { id: 'cat-parenting', type: 'expense', name: '育兒', icon: 'baby', subcategories: ['何岱芸學費', '滿滿才藝課', '其他育兒支出', '小荷包才藝課', '何岱恩學費'] },
   { id: 'cat-salary', type: 'income', name: '薪資獎金', icon: 'wallet', subcategories: ['每月本薪', '績效獎金', '年終分紅', '加班津貼'] },
   { id: 'cat-invest', type: 'income', name: '投資理財', icon: 'trending', subcategories: ['股票股息', '債券配息', '資本利得', '定存利息'] },
   { id: 'cat-other-inc', type: 'income', name: '其他收入', icon: 'gift', subcategories: ['二手拍賣', '退稅/補助', '禮金回饋', '其他收入'] }
@@ -697,6 +698,24 @@ function readCategoriesFromSheetOrConfig() {
       list.push({ id, type, name, icon, subcategories });
     }
     if (list.length > 0) {
+      const hasParenting = list.some((c) => c.name === '育兒' || c.id === 'cat-parenting');
+      if (!hasParenting) {
+        const parentingObj = {
+          id: 'cat-parenting',
+          type: 'expense',
+          name: '育兒',
+          icon: 'baby',
+          subcategories: ['何岱芸學費', '滿滿才藝課', '其他育兒支出', '小荷包才藝課', '何岱恩學費']
+        };
+        const incIdx = list.findIndex((c) => c.type === 'income');
+        if (incIdx >= 0) {
+          list.splice(incIdx, 0, parentingObj);
+        } else {
+          list.push(parentingObj);
+        }
+        writeCategoriesToTableSheet(list);
+        createOrUpdateAnnualSheet(new Date().getFullYear());
+      }
       return list;
     }
   }
