@@ -2,10 +2,11 @@ import {
   DEFAULT_MEMBERS,
   DEFAULT_CATEGORIES,
   DEFAULT_TEMPLATES,
+  DEFAULT_NOTE_SUGGESTIONS,
   LEGACY_TEST_TX_IDS,
   migrateCategoryFields,
   upgradeCategoriesToV16
-} from './defaultData.js?v=17';
+} from './defaultData.js?v=18';
 
 const LEGACY_TEST_ID_SET = new Set(LEGACY_TEST_TX_IDS);
 function isLegacyTestTx(tx) {
@@ -21,7 +22,8 @@ const STORAGE_KEYS = {
   MEMBERS: 'wc_fas_members_stable',
   TEMPLATES: 'wc_fas_templates_stable',
   SETTINGS: 'wc_fas_settings_stable',
-  DELETED_IDS: 'wc_fas_deleted_ids_stable'
+  DELETED_IDS: 'wc_fas_deleted_ids_stable',
+  NOTE_PRESETS: 'wc_fas_note_presets_stable'
 };
 
 const ENCODED_GAS_ENDPOINT =
@@ -184,6 +186,39 @@ export const Storage = {
     );
     localStorage.setItem(STORAGE_KEYS.TEMPLATES, JSON.stringify(migrated));
     return migrated;
+  },
+
+  getNoteSuggestions(categoryName) {
+    const customMap = safeParse(localStorage.getItem(STORAGE_KEYS.NOTE_PRESETS), {}) || {};
+    const defaults = DEFAULT_NOTE_SUGGESTIONS[categoryName] || [
+      '日常開銷',
+      '家庭採買',
+      '固定支出'
+    ];
+    const customs = Array.isArray(customMap[categoryName])
+      ? customMap[categoryName]
+      : [];
+    const merged = [...defaults];
+    customs.forEach((item) => {
+      if (item && !merged.includes(item)) {
+        merged.push(item);
+      }
+    });
+    return merged;
+  },
+
+  addCustomNoteSuggestion(categoryName, noteText) {
+    const clean = String(noteText || '').trim();
+    if (!categoryName || !clean) return;
+    const customMap = safeParse(localStorage.getItem(STORAGE_KEYS.NOTE_PRESETS), {}) || {};
+    const list = Array.isArray(customMap[categoryName])
+      ? [...customMap[categoryName]]
+      : [];
+    if (!list.includes(clean)) {
+      list.push(clean);
+      customMap[categoryName] = list;
+      localStorage.setItem(STORAGE_KEYS.NOTE_PRESETS, JSON.stringify(customMap));
+    }
   },
 
   getTransactions() {

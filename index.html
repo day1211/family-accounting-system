@@ -28,8 +28,8 @@
           const keys = await caches.keys();
           for (const k of keys) await caches.delete(k);
         }
-        if (localStorage.getItem('wc_sw_version') !== 'v17') {
-          localStorage.setItem('wc_sw_version', 'v17');
+        if (localStorage.getItem('wc_sw_version') !== 'v18') {
+          localStorage.setItem('wc_sw_version', 'v18');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=17" />
+  <link rel="stylesheet" href="./css/styles.css?v=18" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -636,10 +636,15 @@
           </div>
         </div>
 
-        <!-- 備註輸入 -->
+        <!-- 備註輸入與快速點選常用備註 -->
         <div>
-          <label class="block text-[11px] font-bold text-slate-500 mb-1">備註說明</label>
-          <input id="tx-note" type="text" placeholder="例如：好市多採買、晚餐、社區管理費..." class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-[11px] font-bold text-slate-500">備註說明（可點選下方常用詞快速填入）</label>
+          </div>
+          <input id="tx-note" type="text" placeholder="例如：早餐、午餐、晚餐、好市多採買..." class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xs font-medium text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
+          <div id="tx-note-quick-chips" class="flex flex-wrap gap-1.5 mt-2">
+            <!-- JS 依據當前分類動態渲染常用備註標籤 -->
+          </div>
         </div>
 
         <!-- 儲存與刪除按鈕 -->
@@ -754,6 +759,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=17"></script>
+  <script type="module" src="./js/app.js?v=18"></script>
 </body>
 </html>

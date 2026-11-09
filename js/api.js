@@ -1,4 +1,4 @@
-import { Storage } from './storage.js?v=17';
+import { Storage } from './storage.js?v=18';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_MEMBERS,
@@ -7,7 +7,7 @@ import {
   generateSampleTransactions,
   migrateCategoryFields,
   upgradeCategoriesToV16
-} from './defaultData.js?v=17';
+} from './defaultData.js?v=18';
 
 let isSyncingNow = false;
 let cachedIdToken = '';

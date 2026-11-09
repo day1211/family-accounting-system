@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=17';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=17';
-import { Storage } from './storage.js?v=17';
-import { Auth } from './auth.js?v=17';
-import { Api } from './api.js?v=17';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=18';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=18';
+import { Storage } from './storage.js?v=18';
+import { Auth } from './auth.js?v=18';
+import { Api } from './api.js?v=18';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -1125,6 +1125,76 @@ function renderTxModalFields() {
         await Api.syncSettingsToCloud();
       }
     });
+  }
+
+  // 渲染「備註說明」常用快速點選標籤
+  const noteChipsEl = document.getElementById('tx-note-quick-chips');
+  if (noteChipsEl) {
+    const noteSuggestions = Storage.getNoteSuggestions(State.txForm.category);
+    const currentNoteVal = (document.getElementById('tx-note').value || '').trim();
+
+    noteChipsEl.innerHTML =
+      noteSuggestions
+        .map((chip) => {
+          const isActive =
+            currentNoteVal === chip || currentNoteVal.startsWith(`${chip} `);
+          return `
+          <button type="button" data-pick-note="${chip}" class="rounded-full px-2.5 py-1 text-[11px] font-semibold border transition ${
+            isActive
+              ? 'bg-indigo-950 text-white border-indigo-950'
+              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+          }">
+            ${chip}
+          </button>
+        `;
+        })
+        .join('') +
+      `
+      <button type="button" id="btn-inline-add-note" class="rounded-full px-2.5 py-1 text-[11px] font-bold bg-slate-50 text-slate-500 border border-dashed border-slate-300 hover:text-slate-800">
+        ＋常用備註
+      </button>
+    `;
+
+    noteChipsEl.querySelectorAll('[data-pick-note]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const picked = btn.getAttribute('data-pick-note');
+        const noteInput = document.getElementById('tx-note');
+        const cur = (noteInput.value || '').trim();
+
+        if (!cur || noteSuggestions.includes(cur)) {
+          noteInput.value = cur === picked ? '' : picked;
+        } else {
+          const matchedPrefix = noteSuggestions.find((s) => cur.startsWith(`${s} `));
+          if (matchedPrefix) {
+            const rest = cur.slice(matchedPrefix.length).trim();
+            noteInput.value = matchedPrefix === picked ? rest : `${picked} ${rest}`;
+          } else {
+            noteInput.value = `${picked} ${cur}`;
+          }
+        }
+        State.txForm.amount = document.getElementById('tx-amount').value;
+        State.txForm.date = document.getElementById('tx-date').value;
+        State.txForm.note = noteInput.value;
+        renderTxModalFields();
+      });
+    });
+
+    const btnAddNote = document.getElementById('btn-inline-add-note');
+    if (btnAddNote) {
+      btnAddNote.addEventListener('click', () => {
+        const newNote = window.prompt(
+          `為「${State.txForm.category}」新增常用備註詞（例如：早餐、好市多、固定扣款）：`
+        );
+        if (!newNote || !newNote.trim()) return;
+        const clean = newNote.trim();
+        Storage.addCustomNoteSuggestion(State.txForm.category, clean);
+        State.txForm.amount = document.getElementById('tx-amount').value;
+        State.txForm.date = document.getElementById('tx-date').value;
+        State.txForm.note = clean;
+        document.getElementById('tx-note').value = clean;
+        renderTxModalFields();
+      });
+    }
   }
 }
 
