@@ -28,8 +28,8 @@
           const keys = await caches.keys();
           for (const k of keys) await caches.delete(k);
         }
-        if (localStorage.getItem('wc_sw_version') !== 'v18') {
-          localStorage.setItem('wc_sw_version', 'v18');
+        if (localStorage.getItem('wc_sw_version') !== 'v19') {
+          localStorage.setItem('wc_sw_version', 'v19');
           window.location.reload();
         }
       } catch (e) {}
@@ -39,7 +39,7 @@
   <!-- Tailwind CSS & QR Code Generator -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <link rel="stylesheet" href="./css/styles.css?v=18" />
+  <link rel="stylesheet" href="./css/styles.css?v=19" />
 </head>
 <body class="min-h-screen bg-[#F4F5F8] text-slate-900 antialiased selection:bg-indigo-600 selection:text-white">
 
@@ -608,12 +608,64 @@
         <!-- 金額與日期 -->
         <div class="grid grid-cols-5 gap-2.5">
           <div class="col-span-3">
-            <label class="block text-[11px] font-bold text-slate-500 mb-1">金額 (NT$)</label>
-            <input id="tx-amount" type="number" inputmode="decimal" required min="1" placeholder="0" class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-3.5 py-2.5 text-xl font-extrabold text-slate-900 tabular-nums focus:bg-white focus:border-indigo-900 focus:outline-none" />
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[11px] font-bold text-slate-500">金額 (NT$)</label>
+              <button id="btn-toggle-calc" type="button" class="inline-flex items-center gap-1 rounded-lg bg-indigo-50 text-indigo-950 border border-indigo-200/80 px-2 py-0.5 text-[10px] font-extrabold hover:bg-indigo-100 active:scale-95 transition">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="16" y2="18"/></svg>
+                <span id="calc-toggle-label">計算機</span>
+              </button>
+            </div>
+            <div class="relative">
+              <input id="tx-amount" type="number" inputmode="decimal" required min="1" placeholder="0" class="w-full rounded-2xl bg-slate-100 border border-slate-200 pl-3.5 pr-10 py-2.5 text-xl font-extrabold text-slate-900 tabular-nums focus:bg-white focus:border-indigo-900 focus:outline-none" />
+              <button id="btn-inline-calc-icon" type="button" title="開啟加減乘除計算機" class="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-950 border border-slate-200/90 p-1.5 shadow-sm active:scale-95 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="14.01"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="16" y2="18"/></svg>
+              </button>
+            </div>
           </div>
           <div class="col-span-2">
             <label class="block text-[11px] font-bold text-slate-500 mb-1">日期</label>
             <input id="tx-date" type="date" required class="w-full rounded-2xl bg-slate-100 border border-slate-200 px-2.5 py-3 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-900 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- 內建加減乘除計算機面板 -->
+        <div id="tx-calc-panel" class="hidden rounded-2xl bg-slate-900 text-white p-3 space-y-2.5 shadow-lg border border-slate-800">
+          <div class="flex items-center justify-between rounded-xl bg-slate-800/90 px-3 py-2 border border-slate-700/70">
+            <div class="min-w-0 flex-1 pr-2">
+              <div class="text-[10px] font-semibold text-slate-400">計算算式</div>
+              <div id="calc-expr-display" class="text-sm font-bold text-slate-100 truncate tabular-nums">0</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-[10px] font-semibold text-indigo-300">計算結果 (自動填入)</div>
+              <div id="calc-result-display" class="text-base font-extrabold text-white tabular-nums">= 0</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-4 gap-1.5 select-none">
+            <button type="button" data-calc-key="C" class="rounded-xl bg-slate-700/80 hover:bg-slate-700 text-rose-300 py-2.5 text-xs font-extrabold active:scale-95 transition">C 清空</button>
+            <button type="button" data-calc-key="BACK" class="rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-200 py-2.5 text-xs font-extrabold active:scale-95 transition">⌫ 退格</button>
+            <button type="button" data-calc-key="/" class="rounded-xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-200 border border-indigo-800/60 py-2.5 text-sm font-extrabold active:scale-95 transition">÷</button>
+            <button type="button" data-calc-key="*" class="rounded-xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-200 border border-indigo-800/60 py-2.5 text-sm font-extrabold active:scale-95 transition">×</button>
+
+            <button type="button" data-calc-key="7" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">7</button>
+            <button type="button" data-calc-key="8" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">8</button>
+            <button type="button" data-calc-key="9" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">9</button>
+            <button type="button" data-calc-key="-" class="rounded-xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-200 border border-indigo-800/60 py-2.5 text-sm font-extrabold active:scale-95 transition">−</button>
+
+            <button type="button" data-calc-key="4" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">4</button>
+            <button type="button" data-calc-key="5" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">5</button>
+            <button type="button" data-calc-key="6" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">6</button>
+            <button type="button" data-calc-key="+" class="rounded-xl bg-indigo-950/90 hover:bg-indigo-900 text-indigo-200 border border-indigo-800/60 py-2.5 text-sm font-extrabold active:scale-95 transition">＋</button>
+
+            <button type="button" data-calc-key="1" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">1</button>
+            <button type="button" data-calc-key="2" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">2</button>
+            <button type="button" data-calc-key="3" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">3</button>
+            <button type="button" data-calc-key="=" class="rounded-xl bg-indigo-800 hover:bg-indigo-700 text-white py-2.5 text-sm font-extrabold active:scale-95 transition">＝</button>
+
+            <button type="button" data-calc-key="0" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold tabular-nums active:scale-95 transition">0</button>
+            <button type="button" data-calc-key="00" class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-xs font-extrabold tabular-nums active:scale-95 transition">00</button>
+            <button type="button" data-calc-key="." class="rounded-xl bg-slate-800 hover:bg-slate-700 text-white py-2.5 text-sm font-extrabold active:scale-95 transition">.</button>
+            <button type="button" data-calc-key="DONE" class="rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 text-xs font-extrabold active:scale-95 transition">完成填入</button>
           </div>
         </div>
 
@@ -759,6 +811,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=18"></script>
+  <script type="module" src="./js/app.js?v=19"></script>
 </body>
 </html>

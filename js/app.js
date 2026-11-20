@@ -1,8 +1,8 @@
-import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=18';
-import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=18';
-import { Storage } from './storage.js?v=18';
-import { Auth } from './auth.js?v=18';
-import { Api } from './api.js?v=18';
+import { CATEGORY_ICON_CHOICES } from './defaultData.js?v=19';
+import { renderIcon, HARMONIOUS_TONAL_SCALE } from './icons.js?v=19';
+import { Storage } from './storage.js?v=19';
+import { Auth } from './auth.js?v=19';
+import { Api } from './api.js?v=19';
 
 const PUBLIC_HTTPS_URL = 'https://day1211.github.io/family-accounting-system/';
 
@@ -12,6 +12,10 @@ const State = {
   currentYearMonth: getTodayYearMonth(),
   expandedCategory: null,
   syncStatus: 'idle',
+  calc: {
+    open: false,
+    expr: ''
+  },
   txForm: {
     id: '',
     type: 'expense',
@@ -990,12 +994,168 @@ function openTransactionModal(editTxId = '', templateId = '') {
   }
 
   renderTxModalFields();
+  State.calc.open = false;
+  State.calc.expr = State.txForm.amount ? String(State.txForm.amount) : '';
+  renderCalculatorPanel();
   modal.classList.remove('hidden');
   modal.classList.add('flex');
 
   setTimeout(() => {
     document.getElementById('tx-amount').focus();
   }, 150);
+}
+
+/**
+ * 安全計算加減乘除算式（支援先乘除後加減）
+ */
+function evaluateCalcExpression(rawExpr) {
+  if (!rawExpr || typeof rawExpr !== 'string') return 0;
+  let clean = rawExpr.replace(/[^0-9.+\-*/]/g, '');
+  clean = clean.replace(/[+\-*/.]+$/, '');
+  if (!clean) return 0;
+
+  const tokens = clean.match(/(\d+(?:\.\d+)?|[+\-*/])/g);
+  if (!tokens || tokens.length === 0) return 0;
+
+  const values = [];
+  const ops = [];
+
+  let i = 0;
+  if (tokens[0] === '-' && tokens.length > 1) {
+    values.push(- parseFloat(tokens[1]));
+    i = 2;
+  } else if (tokens[0] === '+' && tokens.length > 1) {
+    values.push(parseFloat(tokens[1]));
+    i = 2;
+  } else {
+    values.push(parseFloat(tokens[0]) || 0);
+    i = 1;
+  }
+
+  while (i < tokens.length) {
+    const op = tokens[i];
+    const nextVal = parseFloat(tokens[i + 1]);
+    if (Number.isNaN(nextVal)) break;
+
+    if (op === '*') {
+      values[values.length - 1] = values[values.length - 1] * nextVal;
+    } else if (op === '/') {
+      values[values.length - 1] =
+        nextVal === 0 ? values[values.length - 1] : values[values.length - 1] / nextVal;
+    } else if (op === '+' || op === '-') {
+      ops.push(op);
+      values.push(nextVal);
+    }
+    i += 2;
+  }
+
+  let result = values[0] || 0;
+  for (let j = 0; j < ops.length; j++) {
+    if (ops[j] === '+') result += values[j + 1];
+    else if (ops[j] === '-') result -= values[j + 1];
+  }
+
+  if (!Number.isFinite(result) || result < 0) return 0;
+  return Math.round(result);
+}
+
+function formatCalcExprVisual(expr) {
+  if (!expr) return '0';
+  return expr
+    .replace(/\*/g, ' × ')
+    .replace(/\//g, ' ÷ ')
+    .replace(/\+/g, ' ＋ ')
+    .replace(/-/g, ' − ');
+}
+
+function renderCalculatorPanel() {
+  const panel = document.getElementById('tx-calc-panel');
+  const toggleLabel = document.getElementById('calc-toggle-label');
+  if (!panel) return;
+
+  if (State.calc.open) {
+    panel.classList.remove('hidden');
+    if (toggleLabel) toggleLabel.textContent = '收起計算機';
+  } else {
+    panel.classList.add('hidden');
+    if (toggleLabel) toggleLabel.textContent = '計算機';
+  }
+
+  const exprEl = document.getElementById('calc-expr-display');
+  const resEl = document.getElementById('calc-result-display');
+  const evaluated = evaluateCalcExpression(State.calc.expr);
+
+  if (exprEl) exprEl.textContent = formatCalcExprVisual(State.calc.expr);
+  if (resEl) resEl.textContent = `= ${evaluated.toLocaleString('zh-TW')}`;
+}
+
+function toggleCalculator(forceState) {
+  const nextOpen =
+    typeof forceState === 'boolean' ? forceState : !State.calc.open;
+  const amountEl = document.getElementById('tx-amount');
+
+  if (nextOpen) {
+    const currentInputVal = amountEl ? String(amountEl.value || '').trim() : '';
+    if (!State.calc.expr && currentInputVal) {
+      State.calc.expr = currentInputVal;
+    }
+    if (amountEl) amountEl.blur();
+  }
+  State.calc.open = nextOpen;
+  renderCalculatorPanel();
+}
+
+function handleCalculatorKeyPress(key) {
+  const amountEl = document.getElementById('tx-amount');
+  let expr = String(State.calc.expr || '');
+
+  if (key === 'C') {
+    expr = '';
+  } else if (key === 'BACK') {
+    expr = expr.slice(0, -1);
+  } else if (key === '=') {
+    const val = evaluateCalcExpression(expr);
+    expr = val > 0 ? String(val) : '';
+  } else if (key === 'DONE') {
+    const val = evaluateCalcExpression(expr);
+    expr = val > 0 ? String(val) : '';
+    State.calc.expr = expr;
+    if (amountEl) amountEl.value = val > 0 ? val : '';
+    State.txForm.amount = amountEl ? amountEl.value : '';
+    State.calc.open = false;
+    renderCalculatorPanel();
+    return;
+  } else if (['+', '-', '*', '/'].includes(key)) {
+    if (!expr) {
+      const curVal = amountEl ? String(amountEl.value || '').trim() : '';
+      if (curVal) expr = curVal + key;
+    } else if (/[+\-*/]$/.test(expr)) {
+      expr = expr.slice(0, -1) + key;
+    } else {
+      expr += key;
+    }
+  } else if (key === '.') {
+    const parts = expr.split(/[+\-*/]/);
+    const lastNum = parts[parts.length - 1] || '';
+    if (!lastNum.includes('.')) {
+      expr += lastNum ? '.' : '0.';
+    }
+  } else {
+    // 數字 0-9 或 00
+    if (expr === '0') {
+      expr = key === '00' ? '0' : key;
+    } else {
+      expr += key;
+    }
+  }
+
+  State.calc.expr = expr;
+  const finalAmount = evaluateCalcExpression(expr);
+  if (amountEl) {
+    amountEl.value = finalAmount > 0 ? finalAmount : '';
+  }
+  State.txForm.amount = amountEl ? amountEl.value : '';
+  renderCalculatorPanel();
 }
 
 function renderTxModalFields() {
@@ -1349,6 +1509,32 @@ function bindEvents() {
   document.getElementById('btn-quick-open-add').addEventListener('click', () => openTransactionModal());
   document.getElementById('btn-close-tx-modal').addEventListener('click', closeTransactionModal);
 
+  const btnToggleCalc = document.getElementById('btn-toggle-calc');
+  if (btnToggleCalc) {
+    btnToggleCalc.addEventListener('click', () => toggleCalculator());
+  }
+  const btnInlineCalcIcon = document.getElementById('btn-inline-calc-icon');
+  if (btnInlineCalcIcon) {
+    btnInlineCalcIcon.addEventListener('click', () => toggleCalculator());
+  }
+  const calcPanelEl = document.getElementById('tx-calc-panel');
+  if (calcPanelEl) {
+    calcPanelEl.querySelectorAll('[data-calc-key]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        handleCalculatorKeyPress(btn.getAttribute('data-calc-key'));
+      });
+    });
+  }
+  const txAmountInput = document.getElementById('tx-amount');
+  if (txAmountInput) {
+    txAmountInput.addEventListener('input', () => {
+      if (!/[+\-*/]/.test(State.calc.expr)) {
+        State.calc.expr = String(txAmountInput.value || '').trim();
+        renderCalculatorPanel();
+      }
+    });
+  }
+
   document.getElementById('btn-apply-monthly-fixed').addEventListener('click', handleApplyMonthlyFixedTemplates);
   document.getElementById('btn-jump-search').addEventListener('click', () => switchTab('search'));
   document.getElementById('btn-view-all-tx').addEventListener('click', () => switchTab('search'));
@@ -1370,6 +1556,12 @@ function bindEvents() {
 
   document.getElementById('form-transaction').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (State.calc.expr && /[+\-*/]/.test(State.calc.expr)) {
+      const calcResult = evaluateCalcExpression(State.calc.expr);
+      if (calcResult > 0) {
+        document.getElementById('tx-amount').value = calcResult;
+      }
+    }
     const amount = Number(document.getElementById('tx-amount').value);
     const date = document.getElementById('tx-date').value || getTodayDateStr();
     const note = document.getElementById('tx-note').value.trim();

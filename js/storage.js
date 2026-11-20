@@ -6,7 +6,7 @@ import {
   LEGACY_TEST_TX_IDS,
   migrateCategoryFields,
   upgradeCategoriesToV16
-} from './defaultData.js?v=18';
+} from './defaultData.js?v=19';
 
 const LEGACY_TEST_ID_SET = new Set(LEGACY_TEST_TX_IDS);
 function isLegacyTestTx(tx) {
